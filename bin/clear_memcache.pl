@@ -4,6 +4,10 @@ use strict;
 use Cache::Memcached;
 use Data::Dumper;
 
-my $memhost = "kursk-2.mcs.anl.gov:11211";
+if(@ARGV < 1) {
+  print "Usage: $0 <memhost:port>\n";
+}
+
+my $memhost = $ARGV[0];
 my $mem_cache = new Cache::Memcached {"servers" => [$memhost], "debug" => 1, "compress_threshold" => 10_000};
 my $mem_cache->flush_all;

@@ -1,0 +1,4 @@
+# git ignore file 
+
+# ignore all generated files
+conf/conf.ini

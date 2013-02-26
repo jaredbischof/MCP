@@ -3,6 +3,7 @@
 import sys, shlex, socket
 import getpass, commands, subprocess
 import re
+from ConfigParser import SafeConfigParser
 
 __doc__ = """
 MG-RAST Control Program (MCP)
@@ -12,6 +13,9 @@ Service-action pairs available include:
 MCP_path = sys.argv[0]
 matchObj = re.match(r'(^.*\/)', MCP_path)
 MCP_dir = matchObj.group()
+
+parser = SafeConfigParser()
+parser.read(MCP_dir+'conf/conf.ini')
 
 # Service action to user.  Each service action is listed in this dictionary as the key.
 #   Service actions that have a required user and host on which they should be run have
@@ -41,7 +45,7 @@ def run_cmd(cmd_str):
 def memcache(action):
   if action == "clear":
     print "Clearing memcache:"
-    sout, serr = run_cmd(MCP_dir+"bin/clear_memcache.pl")
+    sout, serr = run_cmd(MCP_dir + "bin/clear_memcache.pl " + parser.get('hosts', 'memhost'))
     print "memcache cleared!"
   else:
     sys.stderr.write("ERROR: action '" + action + "' not available for the 'memcache' service\n");
