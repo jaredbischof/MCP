@@ -4,7 +4,9 @@ class mcp_base (object):
         self.MCP_dir = MCP_dir
         parser = SafeConfigParser()
         parser.read(self.MCP_dir+'conf/conf.ini')
+        self.apidir = parser.get('dirs', 'apidir')
         self.memhost = parser.get('hosts', 'memhost')
+        self.services = parser.get('global', 'services')
 
     def run_cmd(self, cmd_str):
         import shlex, subprocess
