@@ -2,3 +2,4 @@
 
 # ignore all generated files
 conf/conf.ini
+*pyc
