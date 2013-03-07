@@ -6,6 +6,7 @@ use Data::Dumper;
 
 if(@ARGV < 1) {
   print "Usage: $0 <memhost:port>\n";
+  exit;
 }
 
 my $memhost = $ARGV[0];
