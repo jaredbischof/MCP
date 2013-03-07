@@ -1,10 +1,23 @@
 #!/usr/bin/env python
 
+import os
 import inspect
 import sys, shlex, socket
 import getpass, commands, subprocess
 import re
 from ConfigParser import SafeConfigParser
+
+# Getting paths
+MCP_path = os.path.realpath(__file__)
+matchObj = re.match(r'(^.*\/)', MCP_path)
+MCP_dir = matchObj.group()
+
+# Adding modules directory to path
+path = list(sys.path)
+sys.path.insert(0, MCP_dir+"mcp_modules/")
+
+parser = SafeConfigParser()
+parser.read(MCP_dir+'conf/conf.ini')
 
 __doc__ = """
 MG-RAST Control Program (MCP)
@@ -12,23 +25,14 @@ MG-RAST Control Program (MCP)
 SERVICE \tACTIONS\t\tUSER
 """
 
-MCP_path = sys.argv[0]
-matchObj = re.match(r'(^.*\/)', MCP_path)
-MCP_dir = matchObj.group()
-
-path = list(sys.path)
-sys.path.insert(0, MCP_dir+'/modules')
-
-parser = SafeConfigParser()
-parser.read(MCP_dir+'conf/conf.ini')
-
+service_name_to_module = {}
 service_action_to_req_user = {}
-
 for module_name in parser.get('global', 'services').split(','):
     module_name = module_name.strip()
     module = __import__(module_name)
+    service_name_to_module[module_name] = module
     for name, obj in inspect.getmembers(module):
-        if inspect.isclass(obj) and hasattr(obj, 'actions'):
+        if inspect.isclass(obj) and name == module_name and hasattr(obj, 'actions'):
             userhost = ""
             if parser.has_option(module_name, 'user') and parser.has_option(module_name, 'host'):
                 userhost = parser.get(module_name, 'user') + '@' + parser.get(module_name, 'host')
@@ -36,17 +40,6 @@ for module_name in parser.get('global', 'services').split(','):
                 service_action_to_req_user[name + " " + action.strip()] = userhost
 
             __doc__ += name + "\t" + obj.actions + "   \t" + userhost + "\n"
-
-# Run command subroutine
-def run_cmd(cmd_str):
-    print cmd_str
-    cmd = shlex.split(str(cmd_str))
-    proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-    stdout, stderr = proc.communicate()
-    if proc.returncode != 0:
-        raise IOError("%s\n%s"%(" ".join(cmd), stderr))
-
-    return stdout, stderr
 
 def main(args):
     usage = "\nUsage: MCP service action\n" + __doc__
@@ -66,9 +59,9 @@ def main(args):
             sys.stderr.write("\n")
             return 0
 
-        # Checking that the command is being called by the correct user@hostname.  Otherwise, pass
-        #   the command onto the appropriate machine as the appropriate user via ssh.  For the time
-        #   being we're just going to call 'sudo -s', but this will change later.
+        # Checking that the command is being called by the correct user@hostname. Otherwise, pass
+        # the command onto the appropriate machine as the appropriate user via ssh. For the time
+        # being we're just going to call 'sudo -s', but this will change later.
         user = getpass.getuser()
         host = socket.gethostname()
         if service_action_to_req_user[service_action] != "" and (user + "@" + host) != service_action_to_req_user[service_action]:
@@ -76,6 +69,16 @@ def main(args):
             array = commands.getstatusoutput("sudo -s ssh " + service_action_to_req_user[service_action] + " " + MCP_path + " " + service_action)
             print array[1]
             return 0
+
+        # Retrieve the appropriate "service" python class
+        myclass = getattr(service_name_to_module[service], service)
+        # Create the python class instance dynamically
+        myservice = myclass(MCP_dir)
+
+        # Retrieve the appropriate "action" python method
+        myaction = getattr(myservice, action)
+        # Run the python method
+        myaction()
 
     return 0
 
