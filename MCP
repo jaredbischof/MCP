@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/soft/packages/python/2.6/bin/python
 
 import os
 import inspect
@@ -39,7 +39,7 @@ for module_name in parser.get('global', 'services').split(','):
             for action in obj.actions.split(','):
                 service_action_to_req_user[name + " " + action.strip()] = userhost
 
-            __doc__ += name + " \t" + obj.actions + "   \t" + userhost + "\n"
+            __doc__ += name + "   \t" + obj.actions + "   \t" + userhost + "\n"
 
 def main(args):
     usage = "\nUsage: MCP service action\n" + __doc__

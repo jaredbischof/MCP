@@ -1,11 +1,11 @@
 import json, time
-from mcp_base import mcp_base
+from subsystem import subsystem
 
-class nagasaki(mcp_base):
+class queue(subsystem):
     actions = "start, stop"
 
     def __init__(self, MCP_dir):
-        mcp_base.__init__(self, MCP_dir)
+        subsystem.__init__(self, MCP_dir)
 
         # getting status of queues
         sout, serr = self.run_cmd("/usr/local/bin/qstat -Q batch")

@@ -1,15 +1,17 @@
 import glob, json, sys, time
-from mcp_base import mcp_base
+from subsystem import subsystem
 
-class mcp_api(mcp_base):
+class mcp_api(subsystem):
     actions = "start"
 
     def __init__(self, MCP_dir):
-        mcp_base.__init__(self, MCP_dir)
+        subsystem.__init__(self, MCP_dir)
         self.state = { 'resource':self.__class__.__name__,
                        'date':time.strftime("%Y-%m-%d %H:%M:%S", time.localtime()),
                        'status':'online'
                      }
+        self.apidir = self.parser.get('mcp_api', 'dir') + "/" + self.parser.get('mcp_api', 'version')
+        self.services = self.parser.get('global', 'services')
 
     def start(self):
         files = glob.glob(self.apidir+"/*")
