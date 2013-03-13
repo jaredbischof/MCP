@@ -15,7 +15,7 @@ use Sys::Syslog qw( :DEFAULT setlogsock);
 
 require Exporter;
 
-my $mlog_conf_file = "/etc/mlog/mlog.conf";
+my $MLOG_CONF_FILE = "/etc/mlog/mlog.conf";
 my $DEFAULT_LOG_LEVEL = 6;
 my $MSG_CHECK_COUNT = 100;
 my $MSG_CHECK_INTERVAL = 300; # 300s = 5min
@@ -38,7 +38,7 @@ mlog
 
 =head1 DESCRIPTION
 
-A wrapper for sending MGRAST logging to syslog.
+A library for sending MG-RAST logging to syslog.
 
 =head1 METHODS
 
@@ -48,7 +48,7 @@ logit(level, component, message, error_code): sends mgrast log message to syslog
 
 =over 10
 
-=item * level: (0-6) The logging level for this message is compared to the logging level that has been set in MGRAST_syslog.  If it is <= the set logging level, the message will be sent to syslog, otherwise it will be ignored.  Logging level is set to 6 if MGRAST control API cannot be reached.
+=item * level: (0-6) The logging level for this message is compared to the logging level that has been set in mlog.  If it is <= the set logging level, the message will be sent to syslog, otherwise it will be ignored.  Logging level is set to 6 if MG-RAST control API cannot be reached.
 
 =item * component: (string) This is the utility within MG-RAST that is logging the message.  This is a free text field.
 
@@ -90,33 +90,16 @@ use_api_log_level(string component) : Removes the user-defined log level for thi
 
 =cut
 
-sub _get_log_level {
-    my ($component) = @_;
-    if(exists $user_defined_log_levels{$component}) {
-        return $user_defined_log_levels{$component};
-    } elsif(exists $api_defined_log_levels{$component}) {
-        return $api_defined_log_levels{$component};
-    } else {
-        return $DEFAULT_LOG_LEVEL;
-    }
-}
-
-sub _get_time_since_start {
-    my $now = DateTime->now( time_zone => 'local' )->set_time_zone('floating');
-    my $seconds_duration = $now->subtract_datetime_absolute($last_update_time);
-    return $seconds_duration->seconds;
-}
-
 sub init_mlog {
     $last_update_msg_count = 0;
     $last_update_time = DateTime->now( time_zone => 'local' )->set_time_zone('floating');
 
     # Retrieving the control API defined log levels...
     my $api_mlog_url = "";
-    open IN, "$mlog_conf_file" || print STDERR "Cannot open $mlog_conf_file for reading mlog configuration.\n";
+    open IN, "$MLOG_CONF_FILE" || print STDERR "Cannot open $MLOG_CONF_FILE for reading mlog configuration.\n";
     while(my $line=<IN>) {
         chomp $line;
-        if($line =~ /^url.*$/) {
+        if($line =~ /^url\s+.*$/) {
             my @array = split(/\s+/, $line);
             $api_mlog_url = $array[1];
         }
@@ -134,6 +117,23 @@ sub init_mlog {
         }
     }
     return 1;
+}
+
+sub _get_log_level {
+    my ($component) = @_;
+    if(exists $user_defined_log_levels{$component}) {
+        return $user_defined_log_levels{$component};
+    } elsif(exists $api_defined_log_levels{$component}) {
+        return $api_defined_log_levels{$component};
+    } else {
+        return $DEFAULT_LOG_LEVEL;
+    }
+}
+
+sub _get_time_since_start {
+    my $now = DateTime->now( time_zone => 'local' )->set_time_zone('floating');
+    my $seconds_duration = $now->subtract_datetime_absolute($last_update_time);
+    return $seconds_duration->seconds;
 }
 
 sub set_log_level {
@@ -186,14 +186,17 @@ sub logit {
         return 0;
     }
 
-    if($msg_count == 0 && $last_update_time eq "") {
-        print STDERR "WARNING: mlog_init() was not called, so I will call it for you.\n";
-        mlog_init();
-    }
-
     unless($level =~ /^\d+$/ && $level >= 0 && $level <= 6) {
       print STDERR "ERROR: mlog level '$level' is invalid, you must enter an integer between 0 and 6, inclusive.\n";
       return 0;
+    }
+
+    ++$msg_count;
+    ++$last_update_msg_count;
+
+    if($msg_count == 0 && $last_update_time eq "") {
+        print STDERR "WARNING: mlog_init() was not called, so I will call it for you.\n";
+        mlog_init();
     }
 
     # May want to include these in 1st openlog argument
