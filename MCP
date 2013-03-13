@@ -10,7 +10,7 @@ from ConfigParser import SafeConfigParser
 # Getting paths
 MCP_path = os.path.realpath(__file__)
 matchObj = re.match(r'(^.*\/)', MCP_path)
-MCP_dir = matchObj.group()
+MCP_dir = matchObj.group(0)
 
 # Adding modules directory to path
 path = list(sys.path)
