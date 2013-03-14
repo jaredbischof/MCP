@@ -54,7 +54,11 @@ METHODS
 
 """
 
+import json
+import urllib2
+import syslog
 import datetime, re
+import inspect, os, getpass, sys
 
 #__all__ = ["mlog", "set_log_level", "set_log_msg_check_count", "set_log_msg_check_interval", "logit", "use_all_api_log_levels", "use_api_log_level"]
 
@@ -62,8 +66,10 @@ MLOG_CONF_FILE = "/etc/mlog/mlog.conf"
 DEFAULT_LOG_LEVEL = 6
 MSG_CHECK_COUNT = 100
 MSG_CHECK_INTERVAL = 300 # 300s = 5min
-LOG_LEVEL_TEXT = [ 'emerg', 'alert', 'crit', 'err',
-                   'warning', 'notice', 'info', 'debug' ]
+MSG_FACILITY = syslog.LOG_LOCAL1
+EMERG_FACILITY = syslog.LOG_LOCAL0
+LOG_LEVEL_TEXT = [ syslog.LOG_EMERG, syslog.LOG_ALERT, syslog.LOG_CRIT, syslog.LOG_ERR,
+                   syslog.LOG_WARNING, syslog.LOG_NOTICE, syslog.LOG_INFO, syslog.LOG_DEBUG ]
 
 api_defined_log_levels = {}
 user_defined_log_levels = {}
@@ -71,7 +77,7 @@ msg_count = 0
 last_update_time = ""
 last_update_msg_count = 0
 
-class mlog():
+class mlog(object):
     """
     This class contains the methods necessary for sending MG-RAST log messages.
     """
@@ -87,12 +93,19 @@ class mlog():
                 api_mlog_url = line.split()[1]
 
         if(api_mlog_url != ""):
-            import json
-            import urllib2
-
-            data = json.load(urllib2.urlopen(api_mlog_url))
-            for components in data['components']:
-                api_defined_log_levels[components['name']] = components['log_level']
+            try:
+                data = json.load(urllib2.urlopen(api_mlog_url, timeout = 5))
+            except urllib2.HTTPError, e:
+                print e.code
+            except urllib2.URLError, e:
+                print "WARNING: Could not access control API at '"+api_mlog_url+"'"
+                print "           due to urllib2 error '"+str(e.args)+"'"
+                print "         Will instead use default log level of '"+str(DEFAULT_LOG_LEVEL)+"' for all components."
+                print "         Alternatively, you can set log levels for components with mlog using:"
+                print "         set_log_level(integer level, string component)"
+            else:
+                for components in data['components']:
+                    api_defined_log_levels[components['name']] = components['log_level']
 
     def _get_log_level(self, component):
         if(component in api_defined_log_levels):
@@ -101,3 +114,72 @@ class mlog():
             return user_defined_log_levels[component]
         else:
             return DEFAULT_LOG_LEVEL
+
+    def _get_time_since_start(self):
+        time_diff = datetime.datetime.now() - self.last_update_time
+        return ( (time_diff.days * 24 * 60 * 60) + time_diff.seconds )
+
+    def set_log_level(self, level, component):
+        if(not isinstance(level, int) or component == ""):
+            sys.stderr.write("ERROR: Format for calling set_log_level is set_log_level(integer level, string component)\n")
+            return 0
+        user_defined_log_levels[component] = level
+        return 1
+
+    def set_log_msg_check_count(self, count):
+        if(not isinstance(count, int)):
+            sys.stderr.write("ERROR: Format for calling set_log_msg_check_count is set_log_msg_check_count(integer count)\n")
+            return 0
+        MSG_CHECK_COUNT = count
+        return 1
+
+    def set_log_msg_check_interval(self, interval):
+        if(not isinstance(interval, int)):
+            sys.stderr.write("ERROR: Format for calling set_log_msg_check_interval is set_log_msg_check_interval(integer seconds)\n")
+            return 0
+        MSG_CHECK_INTERVAL = interval
+        return 1
+
+    def use_all_api_log_levels(self):
+        user_defined_log_levels.clear()
+        return 1
+
+    def use_api_log_level(self, component):
+        if(component == ""):
+            sys.stderr.write("ERROR: Format for calling use_api_log_level is use_api_log_level(string component)\n")
+            return 0
+        del user_defined_log_levels[component]
+        return 1
+
+    def logit(self, level, component, message, error_code):
+        if(not isinstance(level, int) or component == ""):
+            sys.stderr.write("ERROR: Format for calling logit is logit(integer level, string component, string message, string error_code)\n")
+            return 0
+
+        if(level < 0 or level > 6):
+            sys.stderr.write("ERROR: mlog level '"+level+"' is invalid, you must enter an integer between 0 and 6, inclusive.\n")
+            return 0
+
+        ++msg_count
+        ++last_update_msg_count
+
+        user = getpass.getuser()
+        ident = os.path.abspath(inspect.getfile(inspect.stack()[1][0]))
+        logopt = ""
+
+        if(last_update_msg_count >= MSG_CHECK_COUNT or self._get_time_since_start() >= MSG_CHECK_INTERVAL):
+            self.__init__()
+
+        if(level == 0):
+            syslog.openlog(logoption=syslog.LOG_PID, facility=EMERG_FACILITY)
+            syslog.syslog(syslog.LOG_EMERG, message)
+            print component+":"+user+":process_id:"+ident+":"+error_code
+
+        if(level <= self._get_log_level(component)):
+            syslog.openlog(logoption=syslog.LOG_PID, facility=MSG_FACILITY)
+            syslog.syslog(LOG_LEVEL_TEXT[level], message)
+            print component+":"+user+":process_id:"+ident+":"+error_code
+        else:
+            return 0
+
+        return 1
