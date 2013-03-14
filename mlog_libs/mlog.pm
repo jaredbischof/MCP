@@ -19,6 +19,8 @@ my $MLOG_CONF_FILE = "/etc/mlog/mlog.conf";
 my $DEFAULT_LOG_LEVEL = 6;
 my $MSG_CHECK_COUNT = 100;
 my $MSG_CHECK_INTERVAL = 300; # 300s = 5min
+my $MSG_FACILITY = 'local1';
+my $EMERG_FACILITY = 'local0';
 my @LOG_LEVEL_TEXT = ( 'emerg', 'alert', 'crit', 'err',
                          'warning', 'notice', 'info', 'debug' );
 
@@ -168,6 +170,7 @@ sub set_log_msg_check_interval {
 
 sub use_all_api_log_levels {
     %user_defined_log_levels = ();
+    return 1;
 }
 
 sub use_api_log_level {
@@ -177,6 +180,7 @@ sub use_api_log_level {
         return 0;
     }
     delete $user_defined_log_levels{$component};
+    return 1;
 }
 
 sub logit {
@@ -186,25 +190,23 @@ sub logit {
         return 0;
     }
 
-    unless($level =~ /^\d+$/ && $level >= 0 && $level <= 6) {
-      print STDERR "ERROR: mlog level '$level' is invalid, you must enter an integer between 0 and 6, inclusive.\n";
-      return 0;
+    unless($level >= 0 && $level <= 6) {
+        print STDERR "ERROR: mlog level '$level' is invalid, you must enter an integer between 0 and 6, inclusive.\n";
+        return 0;
     }
-
-    ++$msg_count;
-    ++$last_update_msg_count;
 
     if($msg_count == 0 && $last_update_time eq "") {
         print STDERR "WARNING: mlog_init() was not called, so I will call it for you.\n";
         mlog_init();
     }
 
+    ++$msg_count;
+    ++$last_update_msg_count;
+
     # May want to include these in 1st openlog argument
     my $user = $ENV{'USER'};
     my $ident = abs_path($0);
     my $logopt = "";
-    my $msg_facility = 'local1';
-    my $emerg_facility = 'local0';
 
     if($last_update_msg_count >= $MSG_CHECK_COUNT || _get_time_since_start() >= $MSG_CHECK_INTERVAL) {
         mlog_init();
@@ -213,14 +215,14 @@ sub logit {
     # If this message is an emergency, send a copy to the emergency facility
     if($level == 0) {
         setlogsock('unix');
-        openlog("$component:$user:$$:$ident:$error_code", $logopt, $emerg_facility);
+        openlog("$component:$user:$$:$ident:$error_code", $logopt, $EMERG_FACILITY);
         syslog($LOG_LEVEL_TEXT[$level], "$message");
         closelog();
     }
 
     if($level <= _get_log_level($component)) {
         setlogsock('unix');
-        openlog("$component:$user:$$:$ident:$error_code", $logopt, $msg_facility);
+        openlog("$component:$user:$$:$ident:$error_code", $logopt, $MSG_FACILITY);
         syslog($LOG_LEVEL_TEXT[$level], "$message");
         closelog();
     } else {
