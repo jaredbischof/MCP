@@ -93,6 +93,13 @@ use_api_log_level(string component) : Removes the user-defined log level for thi
 =cut
 
 sub init_mlog {
+    %user_defined_log_levels = ();
+    $msg_count = 0;
+    _update_api_defined_log_levels();
+}
+
+sub _update_api_defined_log_levels {
+    %api_defined_log_levels = ();
     $last_update_msg_count = 0;
     $last_update_time = DateTime->now( time_zone => 'local' )->set_time_zone('floating');
 
@@ -196,33 +203,32 @@ sub logit {
     }
 
     if($msg_count == 0 && $last_update_time eq "") {
-        print STDERR "WARNING: mlog_init() was not called, so I will call it for you.\n";
-        mlog_init();
+        print STDERR "WARNING: init_mlog() was not called, so I will call it for you.\n";
+        init_mlog();
     }
 
     ++$msg_count;
     ++$last_update_msg_count;
 
-    # May want to include these in 1st openlog argument
     my $user = $ENV{'USER'};
     my $ident = abs_path($0);
     my $logopt = "";
 
     if($last_update_msg_count >= $MSG_CHECK_COUNT || _get_time_since_start() >= $MSG_CHECK_INTERVAL) {
-        mlog_init();
+        init_mlog();
     }
 
-    # If this message is an emergency, send a copy to the emergency facility
+    # If this message is an emergency, send a copy to the emergency facility first.
     if($level == 0) {
         setlogsock('unix');
-        openlog("$component:$user:$$:$ident:$error_code", $logopt, $EMERG_FACILITY);
+        openlog("$component:$user:$error_code:$ident\[$$\]", $logopt, $EMERG_FACILITY);
         syslog($LOG_LEVEL_TEXT[$level], "$message");
         closelog();
     }
 
     if($level <= _get_log_level($component)) {
         setlogsock('unix');
-        openlog("$component:$user:$$:$ident:$error_code", $logopt, $MSG_FACILITY);
+        openlog("$component:$user:$error_code:$ident\[$$\]", $logopt, $MSG_FACILITY);
         syslog($LOG_LEVEL_TEXT[$level], "$message");
         closelog();
     } else {
