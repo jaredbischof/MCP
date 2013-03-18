@@ -1,12 +1,12 @@
+import json
 import shlex, subprocess
-from ConfigParser import SafeConfigParser
 
 class subsystem (object):
     def __init__(self, MCP_dir):
         self.MCP_dir = MCP_dir
         self.state = {}
-        self.parser = SafeConfigParser()
-        self.parser.read(self.MCP_dir+'conf/conf.ini')
+        json_conf_file = open(self.MCP_dir+'conf/conf.json')
+        self.json_conf = json.load(json_conf_file)
 
     def get_state(self):
         return self.state

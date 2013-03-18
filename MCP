@@ -2,10 +2,10 @@
 
 import os
 import inspect
+import json
 import sys, shlex, socket
 import getpass, commands, subprocess
 import re
-from ConfigParser import SafeConfigParser
 
 # Getting paths
 MCP_path = os.path.realpath(__file__)
@@ -16,8 +16,8 @@ MCP_dir = matchObj.group(0)
 path = list(sys.path)
 sys.path.insert(0, MCP_dir+"mcp_modules/")
 
-parser = SafeConfigParser()
-parser.read(MCP_dir+'conf/conf.ini')
+json_conf_file = open(MCP_dir+'conf/conf.json')
+json_conf = json.load(json_conf_file)
 
 __doc__ = """
 MG-RAST Control Program (MCP)
@@ -27,25 +27,25 @@ SERVICE \tACTIONS\t\tUSER
 
 service_name_to_module = {}
 service_action_to_req_user = {}
-for module_name in parser.get('global', 'services').split(','):
+for module_name in json_conf["global"]["services"]:
     module_name = module_name.strip()
     module = __import__(module_name)
     service_name_to_module[module_name] = module
     for name, obj in inspect.getmembers(module):
         if inspect.isclass(obj) and name == module_name and hasattr(obj, 'actions'):
             userhost = ""
-            if parser.has_option(module_name, 'user') and parser.has_option(module_name, 'host'):
-                userhost = parser.get(module_name, 'user') + '@' + parser.get(module_name, 'host')
+            if 'user' in json_conf[module_name] and 'host' in json_conf[module_name]:
+                userhost = json_conf[module_name]['user'] + '@' + json_conf[module_name]['host']
             for action in obj.actions.split(','):
                 service_action_to_req_user[name + " " + action.strip()] = userhost
 
-            __doc__ += name + "   \t" + obj.actions + "   \t" + userhost + "\n"
+            __doc__ += name + "    \t" + obj.actions + "     \t" + userhost + "\n"
 
 def main(args):
     usage = "\nUsage: MCP service action\n" + __doc__
 
     # Checking number of inputs.
-    if len(sys.argv) != 3:
+    if len(sys.argv) < 3:
         sys.stderr.write(usage)
         sys.stderr.write("\n")
     else:
@@ -66,7 +66,7 @@ def main(args):
         host = socket.gethostname()
         if service_action_to_req_user[service_action] != "" and (user + "@" + host) != service_action_to_req_user[service_action]:
             print "Handing off command to run as: " + service_action_to_req_user[service_action]
-            array = commands.getstatusoutput("sudo -s ssh " + service_action_to_req_user[service_action] + " " + MCP_path + " " + service_action)
+            array = commands.getstatusoutput("sudo -s ssh " + service_action_to_req_user[service_action] + " " + MCP_path + " " + " ".join(map(str,sys.argv[1:])))
             print array[1]
             return 0
 
@@ -78,7 +78,12 @@ def main(args):
         # Retrieve the appropriate "action" python method
         myaction = getattr(myservice, action)
         # Run the python method
-        myaction()
+        if(len(sys.argv) == 3):
+            myaction()
+        elif(len(sys.argv) == 4):
+            myaction(sys.argv[3])
+        elif(len(sys.argv) == 5):
+            myaction(sys.argv[3], sys.argv[4])
 
     return 0
 
