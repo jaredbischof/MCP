@@ -17,7 +17,8 @@ class queue(subsystem):
         fast_status = 'online' if lines[len(lines)-1].split()[3] == 'yes' else 'offline'
 
         self.state = { 'resource':self.__class__.__name__,
-                       'date':time.strftime("%Y-%m-%d %H:%M:%S"),
+                       'updated':time.strftime("%Y-%m-%d %H:%M:%S"),
+                       'url':self.json_conf['global']['apiurl'] + "/" + str(self.json_conf['mcp_api']['version']) + "/" + self.__class__.__name__,
                        'queues': [ { 'name': 'batch',
                                      'status': batch_status
                                    },
