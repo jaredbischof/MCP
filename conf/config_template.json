@@ -1,0 +1,32 @@
+{
+    "mlog": {
+        "user": "",
+        "host": "",
+        "log_levels": {
+            "api": 3,
+            "mgrast": 3
+        }
+    },
+    "queue": {
+        "host": "",
+        "user": ""
+    },
+    "mcp_api": {
+        "user": "",
+        "host": "",
+        "dir": "",
+        "version": 1
+    },
+    "global": {
+        "apiurl": "",
+        "services": [
+            "memcache",
+            "mcp_api",
+            "mlog",
+            "queue"
+        ]
+    },
+    "memcache": {
+        "memhost": ""
+    }
+}
