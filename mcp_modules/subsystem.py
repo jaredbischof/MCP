@@ -7,6 +7,7 @@ class subsystem (object):
         self.state = {}
         json_conf_file = open(self.MCP_dir+'conf/conf.json')
         self.json_conf = json.load(json_conf_file)
+        self.apidir = self.json_conf['mcp_api']['dir'] + "/" + str(self.json_conf['mcp_api']['version'])
 
     def get_state(self):
         return self.state
