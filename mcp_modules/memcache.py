@@ -7,9 +7,10 @@ class memcache(subsystem):
     def __init__(self, MCP_dir):
         subsystem.__init__(self, MCP_dir)
         self.state = { 'resource':self.__class__.__name__,
-                       'date':time.strftime("%Y-%m-%d %H:%M:%S")
+                       'url':self.json_conf['global']['apiurl'] + "/" + str(self.json_conf['mcp_api']['version']) + "/" + self.__class__.__name__,
+                       'updated':time.strftime("%Y-%m-%d %H:%M:%S")
                      }
-        self.memhost = self.parser.get('memcache', 'memhost')
+        self.memhost = self.json_conf['memcache']['memhost']
 
     def clear(self):
         print "Clearing memcache:"
