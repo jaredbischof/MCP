@@ -1,17 +1,10 @@
 #!/soft/packages/python/2.6/bin/python
 
-import os
 import sys
-import re, time
-
-# Getting paths
-MCP_path = os.path.realpath(__file__)
-matchObj = re.match(r'(^.*\/)', MCP_path)
-MCP_dir = matchObj.group(0)
 
 # Adding modules directory to path
 path = list(sys.path)
-sys.path.insert(0, MCP_dir+"mlog_libs/")
+sys.path.insert(0, ".")
 
 from mlog import mlog
 
