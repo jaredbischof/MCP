@@ -101,8 +101,8 @@ class mlog(object):
                 print "         Alternatively, you can set log levels for components with mlog using:"
                 print "         set_log_level(integer level, string component)"
             else:
-                for components in data['components']:
-                    self.api_defined_log_levels[components['name']] = components['log_level']
+                for component in data['log_levels']:
+                    self.api_defined_log_levels[component] = data['log_levels'][component]
 
     def _get_log_level(self, component):
         if(component in self.user_defined_log_levels):
