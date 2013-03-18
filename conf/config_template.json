@@ -1,4 +1,23 @@
 {
+    "global": {
+        "apiurl": "",
+        "services": [
+            "memcache",
+            "mcp_api",
+            "mlog",
+            "queue",
+            "upload"
+        ]
+    },
+    "mcp_api": {
+        "user": "",
+        "host": "",
+        "dir": "",
+        "version": 1
+    },
+    "memcache": {
+        "memhost": ""
+    },
     "mlog": {
         "user": "",
         "host": "",
@@ -7,26 +26,19 @@
             "mgrast": 3
         }
     },
+    "prod": {
+        "host": "",
+        "user": "",
+        "nginx_conf_dir": "",
+        "site": ""
+    },
     "queue": {
         "host": "",
         "user": ""
     },
-    "mcp_api": {
-        "user": "",
+    "upload": {
         "host": "",
-        "dir": "",
-        "version": 1
-    },
-    "global": {
-        "apiurl": "",
-        "services": [
-            "memcache",
-            "mcp_api",
-            "mlog",
-            "queue"
-        ]
-    },
-    "memcache": {
-        "memhost": ""
+        "user": "",
+        "lock_dir": ""
     }
 }

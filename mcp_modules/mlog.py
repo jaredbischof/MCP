@@ -1,6 +1,5 @@
-import glob, json, sys, time
+import json, sys, time
 from subsystem import subsystem
-from mcp_api import mcp_api
 
 class mlog(subsystem):
     actions = "set"
@@ -15,8 +14,6 @@ class mlog(subsystem):
 
         for component in self.json_conf['mlog']['log_levels']:
             self.state['log_levels'][component] = self.json_conf['mlog']['log_levels'][component]
-
-        self.apidir = self.json_conf['mcp_api']['dir'] + "/" + str(self.json_conf['mcp_api']['version'])
 
     def set(self, component, level):
         if component not in self.json_conf['mlog']['log_levels']:

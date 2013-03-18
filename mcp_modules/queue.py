@@ -1,4 +1,4 @@
-import json, time
+import time
 from subsystem import subsystem
 
 class queue(subsystem):
@@ -19,12 +19,9 @@ class queue(subsystem):
         self.state = { 'resource':self.__class__.__name__,
                        'updated':time.strftime("%Y-%m-%d %H:%M:%S"),
                        'url':self.json_conf['global']['apiurl'] + "/" + str(self.json_conf['mcp_api']['version']) + "/" + self.__class__.__name__,
-                       'queues': [ { 'name': 'batch',
-                                     'status': batch_status
-                                   },
-                                   { 'name': 'fast',
-                                     'status': fast_status
-                                   } ]
+                       'status': { 'batch': batch_status,
+                                   'fast': fast_status
+                                 }
                      }
 
     def start(self):

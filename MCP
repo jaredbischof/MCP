@@ -22,7 +22,7 @@ json_conf = json.load(json_conf_file)
 __doc__ = """
 MG-RAST Control Program (MCP)
 
-SERVICE \tACTIONS\t\tUSER
+SERVICE \tUSER@HOST\t\t\tACTIONS
 """
 
 service_name_to_module = {}
@@ -39,7 +39,10 @@ for module_name in json_conf["global"]["services"]:
             for action in obj.actions.split(','):
                 service_action_to_req_user[name + " " + action.strip()] = userhost
 
-            __doc__ += name + "    \t" + obj.actions + "     \t" + userhost + "\n"
+            if userhost == '':
+                userhost = 'ANY                   '
+
+            __doc__ += name + "    \t" + userhost + "     \t" + obj.actions + "\n"
 
 def main(args):
     usage = "\nUsage: MCP service action\n" + __doc__

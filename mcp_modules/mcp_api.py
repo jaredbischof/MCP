@@ -9,9 +9,8 @@ class mcp_api(subsystem):
         self.state = { 'resource':self.__class__.__name__,
                        'updated':time.strftime("%Y-%m-%d %H:%M:%S", time.localtime()),
                        'url':self.json_conf['global']['apiurl'] + "/" + str(self.json_conf['mcp_api']['version']) + "/" + self.__class__.__name__,
-                       'status':'online'
+                       'status': { 'site' : 'online' }
                      }
-        self.apidir = self.json_conf['mcp_api']['dir'] + "/" + str(self.json_conf['mcp_api']['version'])
         self.services = self.json_conf['global']['services']
 
     def start(self):
