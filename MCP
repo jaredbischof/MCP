@@ -1,13 +1,12 @@
 #!/soft/packages/python/2.6/bin/python
 
+import argparse
 import os
-import inspect
 import json
-import sys, shlex, socket
-import getpass, commands, subprocess
+import sys
 import re
 
-# Getting paths
+# Getting path to MCP
 MCP_path = os.path.realpath(__file__)
 matchObj = re.match(r'(^.*\/)', MCP_path)
 MCP_dir = matchObj.group(0)
@@ -19,76 +18,26 @@ sys.path.insert(0, MCP_dir+"mcp_modules/")
 json_conf_file = open(MCP_dir+'conf/conf.json')
 json_conf = json.load(json_conf_file)
 
-__doc__ = """
-MG-RAST Control Program (MCP)
+def main():
+    parser = argparse.ArgumentParser(description='MG-RAST Control Program (MCP)')
+    parser.add_argument('subsystem', metavar='subsystem',
+                   help="An MG-RAST subsystem. The current list of subsystems includes: '" + 
+                   "', '".join(json_conf["global"]["subsystems"])+"'")
+    parser.add_argument('params', metavar='params', nargs=argparse.REMAINDER,
+                   help='Additional arguments should specify an action followed by action parameters.')
+    args = parser.parse_args()
+    subsystem = args.subsystem
+    params = args.params
 
-SERVICE \tUSER@HOST\t\t\tACTIONS
-"""
-
-service_name_to_module = {}
-service_action_to_req_user = {}
-for module_name in json_conf["global"]["services"]:
-    module_name = module_name.strip()
-    module = __import__(module_name)
-    service_name_to_module[module_name] = module
-    for name, obj in inspect.getmembers(module):
-        if inspect.isclass(obj) and name == module_name and hasattr(obj, 'actions'):
-            userhost = ""
-            if 'user' in json_conf[module_name] and 'host' in json_conf[module_name]:
-                userhost = json_conf[module_name]['user'] + '@' + json_conf[module_name]['host']
-            for action in obj.actions.split(','):
-                service_action_to_req_user[name + " " + action.strip()] = userhost
-
-            if userhost == '':
-                userhost = 'ANY                   '
-
-            __doc__ += name + "    \t" + userhost + "     \t" + obj.actions + "\n"
-
-def main(args):
-    usage = "\nUsage: MCP service action\n" + __doc__
-
-    # Checking number of inputs.
-    if len(sys.argv) < 3:
-        sys.stderr.write(usage)
-        sys.stderr.write("\n")
-    else:
-        service = sys.argv[1]
-        action = sys.argv[2]
-
-        # Checking that user has entered a valid service-action pair.
-        service_action = service + " " + action
-        if service_action not in service_action_to_req_user:
-            sys.stderr.write("\nERROR: service-action '" + service_action + "' not available\n" + usage)
-            sys.stderr.write("\n")
-            return 0
-
-        # Checking that the command is being called by the correct user@hostname. Otherwise, pass
-        # the command onto the appropriate machine as the appropriate user via ssh. For the time
-        # being we're just going to call 'sudo -s', but this will change later.
-        user = getpass.getuser()
-        host = socket.gethostname()
-        if service_action_to_req_user[service_action] != "" and (user + "@" + host) != service_action_to_req_user[service_action]:
-            print "Handing off command to run as: " + service_action_to_req_user[service_action]
-            array = commands.getstatusoutput("sudo -s ssh " + service_action_to_req_user[service_action] + " " + MCP_path + " " + " ".join(map(str,sys.argv[1:])))
-            print array[1]
-            return 0
-
-        # Retrieve the appropriate "service" python class
-        myclass = getattr(service_name_to_module[service], service)
+    if subsystem in json_conf["global"]["subsystems"]:
+        # Retrieve the appropriate "subsystem" python module and class (module and class names should be identical)
+        module = __import__(subsystem)
+        myclass = getattr(module, subsystem)
         # Create the python class instance dynamically
-        myservice = myclass(MCP_dir)
-
-        # Retrieve the appropriate "action" python method
-        myaction = getattr(myservice, action)
-        # Run the python method
-        if(len(sys.argv) == 3):
-            myaction()
-        elif(len(sys.argv) == 4):
-            myaction(sys.argv[3])
-        elif(len(sys.argv) == 5):
-            myaction(sys.argv[3], sys.argv[4])
+        mysubsystem = myclass(MCP_path)
+        mysubsystem.run(params)
 
     return 0
 
 if __name__ == "__main__":
-    sys.exit( main(sys.argv) )
+    sys.exit( main() )
