@@ -1,22 +1,18 @@
-import os, json, sys, time
+import os, json, sys
 from subsystem import subsystem
 
 class upload(subsystem):
-    actions = "lock_page, unlock_page"
+    actions = [ 'lock_page', 'unlock_page', 'log' ]
 
-    def __init__(self, MCP_dir):
-        subsystem.__init__(self, MCP_dir)
-        self.state = { 'resource':self.__class__.__name__,
-                       'updated':time.strftime("%Y-%m-%d %H:%M:%S", time.localtime()),
-                       'url':self.json_conf['global']['apiurl'] + "/" + str(self.json_conf['mcp_api']['version']) + "/" + self.__class__.__name__,
-                       'status':{}
-                     }
+    def __init__(self, MCP_path):
+        subsystem.__init__(self, MCP_path)
+        self.state['status'] = {}
 
         self.lock_file = self.json_conf['upload']['lock_dir'] + "/upload.lock"
         if os.path.isfile(self.lock_file):
-            self.state['status']['page'] = "locked"
+            self.state['status']['page'] = "offline"
         else:
-            self.state['status']['page'] = "not locked"
+            self.state['status']['page'] = "online"
 
     def lock_page(self):
         fh = file(self.lock_file, 'a')
@@ -25,8 +21,8 @@ class upload(subsystem):
         finally:
             fh.close()
 
-        self.state['status']['page'] = "locked"
-        jstate = json.dumps(self.get_state())
+        self.state['status']['page'] = "offline"
+        jstate = json.dumps(self.state)
         f = open(self.apidir + "/" + self.__class__.__name__, 'w')
         f.write(jstate)
         return 1
@@ -35,8 +31,8 @@ class upload(subsystem):
         if os.path.isfile(self.lock_file):
             os.unlink(self.lock_file)
 
-        self.state['status']['page'] = "not locked"
-        jstate = json.dumps(self.get_state())
+        self.state['status']['page'] = "online"
+        jstate = json.dumps(self.state)
         f = open(self.apidir + "/" + self.__class__.__name__, 'w')
         f.write(jstate)
         return 1
