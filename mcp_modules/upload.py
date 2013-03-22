@@ -14,7 +14,8 @@ class upload(subsystem):
         else:
             self.state['status']['page'] = "online"
 
-    def lock_page(self):
+    def lock_page(self, params):
+        self.parse_method_params('lock_page', [], {}, params)
         fh = file(self.lock_file, 'a')
         try:
             os.utime(self.lock_file, None)
@@ -25,9 +26,9 @@ class upload(subsystem):
         jstate = json.dumps(self.state)
         f = open(self.apidir + "/" + self.__class__.__name__, 'w')
         f.write(jstate)
-        return 1
 
-    def unlock_page(self):
+    def unlock_page(self, params):
+        self.parse_method_params('unlock_page', [], {}, params)
         if os.path.isfile(self.lock_file):
             os.unlink(self.lock_file)
 
@@ -35,4 +36,3 @@ class upload(subsystem):
         jstate = json.dumps(self.state)
         f = open(self.apidir + "/" + self.__class__.__name__, 'w')
         f.write(jstate)
-        return 1

@@ -7,8 +7,8 @@ class memcache(subsystem):
         subsystem.__init__(self, MCP_path)
         self.memhost = self.json_conf['memcache']['memhost']
 
-    def clear(self):
+    def clear(self, params):
+        self.parse_method_params('clear', [], {}, params)
         print "Clearing memcache:"
-        sout = self.run_cmd(self.MCP_dir + "bin/clear_memcache.pl " + self.memhost)
+        sout, serr = self.run_cmd(self.MCP_dir + "bin/clear_memcache.pl " + self.memhost)
         print "memcache cleared!"
-        return 1
