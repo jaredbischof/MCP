@@ -35,7 +35,9 @@ def main():
         myclass = getattr(module, subsystem)
         # Create the python class instance dynamically
         mysubsystem = myclass(MCP_path)
-        mysubsystem.run(params)
+        action, action_params = mysubsystem.parse_subsystem_params(params)
+        myaction = getattr(mysubsystem, action)
+        myaction(action_params)
 
     return 0
 
