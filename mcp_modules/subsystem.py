@@ -15,8 +15,8 @@ class subsystem (object):
         json_conf_file = open(self.MCP_dir+'conf/conf.json')
         self.json_conf = json.load(json_conf_file)
         self.apidir = self.json_conf['mcp_api']['dir'] + "/" + str(self.json_conf['mcp_api']['version'])
-        self.log_level_max = self.json_conf['global']['log_level_max']
         self.log_level_min = self.json_conf['global']['log_level_min']
+        self.log_level_max = self.json_conf['global']['log_level_max']
 
         self.req_host = ""
         if 'req_host' in self.json_conf[self.subsystem]:
@@ -26,13 +26,17 @@ class subsystem (object):
         if 'req_user' in self.json_conf[self.subsystem]:
             self.req_user = self.json_conf[self.subsystem]['req_user']
 
+        self.req_login = ""
+        if self.req_host != "" and self.req_user != "":
+            self.req_login = self.req_user + "@" + self.req_host
+
         self.state = { 'log_level':self.json_conf['global']['default_log_level'],
                        'subsystem':self.subsystem,
                        'updated':time.strftime("%Y-%m-%d %H:%M:%S", time.localtime()),
                        'url':self.json_conf['global']['apiurl'] + "/" + str(self.json_conf['mcp_api']['version']) + "/" + self.subsystem
                      }
 
-    def run(self, params):
+    def parse_subsystem_params(self, params):
         parser = argparse.ArgumentParser(prog='MCP ' + self.subsystem)
         parser.add_argument('action', metavar='action',
                        help="An action for the subsystem '" + self.subsystem + "' to perform. Available actions include: '" + "', '".join(self.actions) + "'")
@@ -40,34 +44,38 @@ class subsystem (object):
                        help="Additional arguments should specify an action followed by action parameters if required.")
         args = parser.parse_args(params)
         action = args.action
-        params = args.params
+        action_params = args.params
+        return action, action_params
 
+    def check_userhost(self):
         user = getpass.getuser()
         host = socket.gethostname()
-        req_login = self.req_user + "@" + self.req_host
-        if self.req_host != "" and self.req_user != "" and (user + "@" + host) != req_login:
-            print "Handing off command to run as: " + req_login
-            sout, serr = self.run_cmd("sudo -s ssh " + " ".join([req_login, self.MCP_path, self.subsystem, action]) + " " + " ".join(params))
-            if sout != "": sys.stdout.write(sout + "\n")
-            if serr != "": sys.stdout.write(serr + "\n")
-            return 0
+        if self.req_login != "" and (user + "@" + host) != self.req_login:
+            return -1
 
-        myaction = getattr(self, action)
-        if params:
-            myaction(params)
-        else:
-            myaction([])
+        return 0
 
-    def parse_method_params(self, action, method_params, method_param_settings, params):
+    def pass_mcp_cmd(self, action, params):
+        print "Attempting to run command as: " + self.req_login
+        sout, serr = self.run_cmd("sudo -s ssh " + " ".join([self.req_login, self.MCP_path, self.subsystem, action]) + " " + " ".join(params))
+        if sout != "": sys.stdout.write(sout + "\n")
+        if serr != "": sys.stdout.write(serr + "\n")
+
+    def parse_action_params(self, action, action_params, action_param_settings, params):
         parser = argparse.ArgumentParser(prog='MCP ' + self.subsystem + " " + action)
-        for p in method_params:
-            parser.add_argument(p, type=method_param_settings[p][0], metavar=p, help=method_param_settings[p][1])
+        for p in action_params:
+            parser.add_argument(p, type=action_param_settings[p][0], metavar=p, help=action_param_settings[p][1])
         args = parser.parse_args(params)
 
     def log(self, params):
-        method_params = [ 'level' ]
-        method_param_settings = { 'level' : [ int, "The log level setting for this resource" ] }
-        self.parse_method_params('log', method_params, method_param_settings, params)
+        action = 'log'
+        action_params = [ 'level' ]
+        action_param_settings = { 'level' : [ int, "The log level setting for this resource" ] }
+        self.parse_action_params(action, action_params, action_param_settings, params)
+        if self.check_userhost() == -1:
+            self.pass_mcp_cmd(action, params)
+            return 0
+
         level = params[0]
         try:
             level = int(level)
@@ -76,7 +84,7 @@ class subsystem (object):
             return 1
 
         if level < self.log_level_min or level > self.log_level_max:
-            sys.stderr.write("ERROR: '" + str(level) + "' is not a valid logging level (" + str(self.log_level_min) + "-" + str(self.log_level_max)) + ")\n"
+            sys.stderr.write("ERROR: '" + str(level) + "' is not a valid logging level (" + str(self.log_level_min) + "-" + str(self.log_level_max) + ")\n")
             return 1
 
         self.state['log_level'] = level

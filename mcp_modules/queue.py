@@ -18,13 +18,23 @@ class queue(subsystem):
         self.state['status'] = { 'batch': batch_status, 'fast': fast_status }
 
     def start(self, params):
-        self.parse_method_params('start', [], {}, params)
+        action = 'start'
+        self.parse_action_params(action, [], {}, params)
+        if self.check_userhost() == -1:
+            self.pass_mcp_cmd(action, params)
+            return 0
+
         print "Starting nagasaki pipeline:"
         sout, serr = self.run_cmd("/usr/local/bin/qstart batch")
         print "nagasaki pipeline started!"
 
     def stop(self, params):
-        self.parse_method_params('stop', [], {}, params)
+        action = 'stop'
+        self.parse_action_params(action, [], {}, params)
+        if self.check_userhost() == -1:
+            self.pass_mcp_cmd(action, params)
+            return 0
+
         print "Stopping nagasaki pipeline:"
         sout, serr = self.run_cmd("/usr/local/bin/qstop batch")
         print "nagasaki pipeline stopped!"

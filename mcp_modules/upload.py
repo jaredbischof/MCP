@@ -15,7 +15,12 @@ class upload(subsystem):
             self.state['status']['page'] = "online"
 
     def lock_page(self, params):
-        self.parse_method_params('lock_page', [], {}, params)
+        action = 'lock_page'
+        self.parse_action_params(action, [], {}, params)
+        if self.check_userhost() == -1:
+            self.pass_mcp_cmd(action, params)
+            return 0
+
         fh = file(self.lock_file, 'a')
         try:
             os.utime(self.lock_file, None)
@@ -28,7 +33,12 @@ class upload(subsystem):
         f.write(jstate)
 
     def unlock_page(self, params):
-        self.parse_method_params('unlock_page', [], {}, params)
+        action = 'unlock_page'
+        self.parse_action_params(action, [], {}, params)
+        if self.check_userhost() == -1:
+            self.pass_mcp_cmd(action, params)
+            return 0
+
         if os.path.isfile(self.lock_file):
             os.unlink(self.lock_file)
 

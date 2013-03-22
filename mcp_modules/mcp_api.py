@@ -9,12 +9,18 @@ class mcp_api(subsystem):
         self.state['status'] = { 'site' : 'online' }
 
     def start(self, params):
-        self.parse_method_params('start', [], {}, params)
+        action = 'start'
+        self.parse_action_params(action, [], {}, params)
+        if self.check_userhost() == -1:
+            self.pass_mcp_cmd(action, params)
+            return 0
+ 
         files = glob.glob(self.apidir+"/*")
         if len(files) != 0:
             sys.stderr.write("ERROR: Cannot initialize mcp_api because API directory (" + self.apidir + ") is not empty\n")
             return 1
 
+        print "Starting MCP API..."
         for subsystem in self.json_conf['global']['subsystems']:
             subsystem = subsystem.strip();
             module = __import__(subsystem)
@@ -25,7 +31,12 @@ class mcp_api(subsystem):
             f.write(jstate)
 
     def stop(self, params):
-        self.parse_method_params('stop', [], {}, params)
+        action = 'stop'
+        self.parse_action_params(action, [], {}, params)
+        if self.check_userhost() == -1:
+            self.pass_mcp_cmd(action, params)
+            return 0
+
         for file_object in os.listdir(self.apidir):
             file_object_path = os.path.join(self.apidir, file_object)
             if os.path.isfile(file_object_path):
@@ -34,6 +45,11 @@ class mcp_api(subsystem):
                 shutil.rmtree(file_object_path)
 
     def restart(self, params):
-        self.parse_method_params('restart', [], {}, params)
+        action = 'restart'
+        self.parse_action_params(action, [], {}, params)
+        if self.check_userhost() == -1:
+            self.pass_mcp_cmd(action, params)
+            return 0
+
         self.stop(params)
         self.start(params)
