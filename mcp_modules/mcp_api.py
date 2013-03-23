@@ -10,7 +10,8 @@ class mcp_api(subsystem):
 
     def start(self, params):
         action = 'start'
-        self.parse_action_params(action, [], {}, params)
+        desc = "description: this action writes the default files for the MCP API"
+        self.parse_action_params(action, [], {}, desc, params)
         if self.check_userhost() == -1:
             self.pass_mcp_cmd(action, params)
             return 0
@@ -32,7 +33,8 @@ class mcp_api(subsystem):
 
     def stop(self, params):
         action = 'stop'
-        self.parse_action_params(action, [], {}, params)
+        desc = "description: this action deletes the files of the MCP API"
+        self.parse_action_params(action, [], {}, desc, params)
         if self.check_userhost() == -1:
             self.pass_mcp_cmd(action, params)
             return 0
@@ -46,7 +48,8 @@ class mcp_api(subsystem):
 
     def restart(self, params):
         action = 'restart'
-        self.parse_action_params(action, [], {}, params)
+        desc = "description: this action deletes then writes the default files for the MCP API"
+        self.parse_action_params(action, [], {}, desc, params)
         if self.check_userhost() == -1:
             self.pass_mcp_cmd(action, params)
             return 0

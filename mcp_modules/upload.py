@@ -16,7 +16,9 @@ class upload(subsystem):
 
     def lock_page(self, params):
         action = 'lock_page'
-        self.parse_action_params(action, [], {}, params)
+        desc = "description: this action creates the lock file for the MG-RAST production upload page and thus disables that page."
+        self.parse_action_params(action, [], {}, desc, params)
+
         if self.check_userhost() == -1:
             self.pass_mcp_cmd(action, params)
             return 0
@@ -34,7 +36,9 @@ class upload(subsystem):
 
     def unlock_page(self, params):
         action = 'unlock_page'
-        self.parse_action_params(action, [], {}, params)
+        desc = "description: this action deletes the lock file for the MG-RAST production upload page and thus enables that page."
+        self.parse_action_params(action, [], {}, desc, params)
+
         if self.check_userhost() == -1:
             self.pass_mcp_cmd(action, params)
             return 0

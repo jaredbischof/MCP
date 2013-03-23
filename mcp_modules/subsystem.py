@@ -4,6 +4,7 @@ import json
 import getpass, re, socket
 import shlex, shutil, subprocess
 import sys, time
+import textwrap
 
 class subsystem (object):
     def __init__(self, MCP_path):
@@ -41,7 +42,7 @@ class subsystem (object):
         parser.add_argument('action', metavar='action',
                        help="An action for the subsystem '" + self.subsystem + "' to perform. Available actions include: '" + "', '".join(self.actions) + "'")
         parser.add_argument('params', metavar='params', nargs=argparse.REMAINDER,
-                       help="Additional arguments should specify an action followed by action parameters if required.")
+                       help="The action may be followed by action parameters.")
         args = parser.parse_args(params)
         action = args.action
         action_params = args.params
@@ -61,8 +62,8 @@ class subsystem (object):
         if sout != "": sys.stdout.write(sout + "\n")
         if serr != "": sys.stdout.write(serr + "\n")
 
-    def parse_action_params(self, action, action_params, action_param_settings, params):
-        parser = argparse.ArgumentParser(prog='MCP ' + self.subsystem + " " + action)
+    def parse_action_params(self, action, action_params, action_param_settings, desc, params):
+        parser = argparse.ArgumentParser(prog='MCP ' + self.subsystem + " " + action, description=desc)
         for p in action_params:
             parser.add_argument(p, type=action_param_settings[p][0], metavar=p, help=action_param_settings[p][1])
         args = parser.parse_args(params)
@@ -70,8 +71,9 @@ class subsystem (object):
     def log(self, params):
         action = 'log'
         action_params = [ 'level' ]
-        action_param_settings = { 'level' : [ int, "The log level setting for this resource" ] }
-        self.parse_action_params(action, action_params, action_param_settings, params)
+        action_param_settings = { 'level' : [ int, "Log level to set for " + self.subsystem + " (" + str(self.log_level_min) + "-" + str(self.log_level_max) + ")" ] }
+        desc = "description: this action sets the log level for the '" + self.subsystem + "' subsystem"
+        self.parse_action_params(action, action_params, action_param_settings, desc, params)
         if self.check_userhost() == -1:
             self.pass_mcp_cmd(action, params)
             return 0

@@ -10,7 +10,8 @@ class memcache(subsystem):
 
     def clear(self, params):
         action = 'clear'
-        self.parse_action_params(action, [], {}, params)
+        desc = "description: this action clears the memcache"
+        self.parse_action_params(action, [], {}, desc, params)
         cmd = self.MCP_dir + self.prog + " " + self.memhost
 
         if self.check_userhost() == -1:
