@@ -6,7 +6,7 @@ class mcp_api(subsystem):
 
     def __init__(self, MCP_path):
         subsystem.__init__(self, MCP_path)
-        self.state['status'] = { 'site' : 'online' }
+        self.state['status'] = { 'site' : self.get_url_status(self.json_conf['global']['api_url']) }
 
     def start(self, params):
         action = 'start'
