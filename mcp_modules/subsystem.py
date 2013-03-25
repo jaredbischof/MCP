@@ -5,6 +5,7 @@ import getpass, re, socket
 import shlex, shutil, subprocess
 import sys, time
 import textwrap
+import urllib
 
 class subsystem (object):
     def __init__(self, MCP_path):
@@ -34,7 +35,7 @@ class subsystem (object):
         self.state = { 'log_level':self.json_conf['global']['default_log_level'],
                        'subsystem':self.subsystem,
                        'updated':time.strftime("%Y-%m-%d %H:%M:%S", time.localtime()),
-                       'url':self.json_conf['global']['apiurl'] + "/" + str(self.json_conf['mcp_api']['version']) + "/" + self.subsystem
+                       'url':self.json_conf['global']['api_url'] + "/" + str(self.json_conf['mcp_api']['version']) + "/" + self.subsystem
                      }
 
     def parse_subsystem_params(self, params):
@@ -96,6 +97,13 @@ class subsystem (object):
         f = open(fname + ".tmp", 'w')
         f.write(jstate)
         shutil.move(fname + ".tmp", fname)
+
+    def get_url_status(self, url):
+        code = urllib.urlopen(url).getcode()
+        if code == 200:
+            return 'online'
+        else:
+            return 'offline'
 
     def run_cmd(self, cmd_str):
         cmd = shlex.split(str(cmd_str))
