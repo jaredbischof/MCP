@@ -1,7 +1,7 @@
 from subsystem import subsystem
 
 class memcache(subsystem):
-    actions = [ 'clear', 'log' ]
+    actions = [ 'clear', 'set_log', 'delete_log' ]
 
     def __init__(self, MCP_path):
         subsystem.__init__(self, MCP_path)
@@ -15,11 +15,11 @@ class memcache(subsystem):
         cmd = self.MCP_dir + self.prog + " " + self.memhost
 
         if self.check_userhost() == -1:
-            print "ACTION: attempting to clear memcache as: " + self.req_login
+            self.log_msg("ACTION : Attempting to clear memcache as " + self.req_login)
             sout, serr = self.run_cmd("sudo -s ssh " + self.req_login + " " + cmd)
-            print "SUCCESS: memcache cleared!"
+            self.log_msg("SUCCESS : memcache cleared")
             return 0
 
-        print "ACTION: clearing memcache"
+        self.log_msg("ACTION : Attempting to clear memcache")
         sout, serr = self.run_cmd(cmd)
-        print "SUCCESS: memcache cleared"
+        self.log_msg("SUCCESS : memcache cleared")
