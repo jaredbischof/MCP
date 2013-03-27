@@ -6,50 +6,48 @@ DESCRIPTION
        A library for sending MG-RAST logging to syslog.
 
 METHODS
-       logit(level, component, message, error_code): sends mgrast log message to syslog.
+       mlog(string subsystem, hashref constraints): Initializes mlog. You should call this at the beginning of your program. Constraints are optional.
 
-       *         level: (0-6) The logging level for this message is compared to the logging level that has been set in
-                 mlog.  If it is <= the set logging level, the message will be sent to syslog, otherwise it will be
-                 ignored.  Logging level is set to 6 if MG-RAST control API cannot be reached.
+       logit(int level, string message, string error_code): sends mgrast log message to syslog.
 
-       *         component: (string) This is the utility within MG-RAST that is logging the message.  This is a free
-                 text field.
+       *         level: (0-6) The logging level for this message is compared to the logging level that has been set in mlog.  If it is <= the set logging level, the
+                 message will be sent to syslog, otherwise it will be ignored.  Logging level is set to 6 if MG-RAST control API cannot be reached and the user does
+                 not set the log level. Log level can also be entered as string (e.g. 'debug')
 
-       *         message: (string) This is the log message.
+       *          message: This is the log message.
 
-       *         error_code: (string) The error code for this log message.
+       *          error_code [optional]: The error code for this log message.
 
-       set_log_level(integer level, string component) : Sets the logging level of the given component. Only use this if
-       you wish to override the log levels that are defined by the control API.
+       get_log_level(): Returns the current log level as an integer.
 
-       *         level : priority
+       set_log_level(integer level) : Sets the log level. Only use this if you wish to override the log levels that are defined by the control API. Can also be entered
+       as string (e.g. 'debug')
 
-       *         0 : emergencies - vital component is down
+       *          level : priority
 
-       *         1 : alerts - non-vital component is down
+       *          0 : emergency - vital component is down
 
-       *         2 : errors - error that prevents proper operation
+       *          1 : alert - non-vital component is down
 
-       *         3 : warning - error, but does not prevent operation
+       *          2 : error - error that prevents proper operation
 
-       *         4 : debug - lowest level of debug
+       *          3 : warning - error, but does not prevent operation
 
-       *         5 : debug2 - second level of debug
+       *          4 : debug - lowest level of debug
 
-       *         6 : debug3 - highest level of debug
+       *          5 : debug2 - second level of debug
 
-       set_log_msg_check_count(integer count): used to set the number the messages that mlog will log before querying
-       the control API for the log level of all components (default is 100 messages).
+       *          6 : debug3 - highest level of debug
 
-       set_log_msg_check_interval(integer seconds): used to set the interval, in seconds, that will be allowed to pass
-       before  mlog will  query the control API for the log level of the given component (default is 300 seconds).
+       set_log_msg_check_count(integer count): used to set the number the messages that mlog will log before querying the control API for the log level (default is 100
+       messages).
 
-       use_all_api_log_levels() : Removes all user-defined log levels and tells mlog to use the control API defined log
-       levels.
+       set_log_msg_check_interval(integer seconds): used to set the interval, in seconds, that will be allowed to pass before mlog will query the control API for the
+       log level (default is 300 seconds).
 
-       use_api_log_level(string component) : Removes the user-defined log level for this component and tells mlog to use
-       the control API defined log levels.
+       update_api_log_level() : Checks the control API for the currently set log level.
 
+       use_api_log_level() : Removes the user-defined log level and tells mlog to use the control API-defined log level.
 """
 
 import json
@@ -60,124 +58,155 @@ import inspect, os, getpass, sys
 
 MLOG_CONF_FILE = "/etc/mlog/mlog.conf"
 DEFAULT_LOG_LEVEL = 6
+LOG_LEVEL_MIN = 0
+LOG_LEVEL_MAX = 6
 MSG_CHECK_COUNT = 100
 MSG_CHECK_INTERVAL = 300 # 300s = 5min
 MSG_FACILITY = syslog.LOG_LOCAL1
 EMERG_FACILITY = syslog.LOG_LOCAL0
-LOG_LEVEL_TEXT = [ syslog.LOG_EMERG, syslog.LOG_ALERT, syslog.LOG_CRIT, syslog.LOG_ERR,
-                   syslog.LOG_WARNING, syslog.LOG_NOTICE, syslog.LOG_INFO, syslog.LOG_DEBUG ]
+SYSLOG_LEVELS = [ syslog.LOG_EMERG, syslog.LOG_ALERT, syslog.LOG_CRIT, syslog.LOG_ERR,
+                  syslog.LOG_WARNING, syslog.LOG_NOTICE, syslog.LOG_INFO, syslog.LOG_DEBUG ]
+MLOG_TEXT_TO_LEVEL = { 'emergency' : 0,
+                       'alert' : 1,
+                       'error' : 2,
+                       'warning' : 3,
+                       'debug' : 4,
+                       'debug2' : 5,
+                       'debug3' : 6 };
 
 class mlog(object):
     """
     This class contains the methods necessary for sending MG-RAST log messages.
     """
 
-    def __init__(self):
-        self.user_defined_log_levels = {}
+    def __init__(self, *args):
+        if len(args) < 1:
+            sys.stderr.write("ERROR: You must define a subsystem when initializing mlog\n")
+            return 1
+
+        self.subsystem = args[0]
+        self.user_log_level = -1
         self.msg_count = 0
-        self._update_api_defined_log_levels()
+        self.log_constraints = {}
 
-    def _update_api_defined_log_levels(self):
-        self.api_defined_log_levels = {}
-        self.last_update_msg_count = 0
-        self.last_update_time = datetime.datetime.now()
+        if len(args) > 1:
+            self.log_constraints = args[1]
 
-        # Retrieving the control API defined log levels...
-        api_mlog_url = ""
-        for line in open(MLOG_CONF_FILE):
-            line.strip()
-            if(re.match(r'^url\s+', line)):
-                api_mlog_url = line.split()[1]
+        self.update_api_log_level()
 
-        if(api_mlog_url != ""):
-            try:
-                data = json.load(urllib2.urlopen(api_mlog_url, timeout = 5))
-            except urllib2.HTTPError, e:
-                print e.code
-            except urllib2.URLError, e:
-                print "WARNING: Could not access control API at '"+api_mlog_url+"'"
-                print "           due to urllib2 error '"+str(e.args)+"'"
-                print "         Will instead use default log level of '"+str(DEFAULT_LOG_LEVEL)+"' for all components."
-                print "         Alternatively, you can set log levels for components with mlog using:"
-                print "         set_log_level(integer level, string component)"
-            else:
-                for component in data['log_levels']:
-                    self.api_defined_log_levels[component] = data['log_levels'][component]
-
-    def _get_log_level(self, component):
-        if(component in self.user_defined_log_levels):
-            return self.user_defined_log_levels[component]
-        elif(component in self.api_defined_log_levels):
-            return self.api_defined_log_levels[component]
+    def _get_time_since_start(self):
+        time_diff = datetime.datetime.now() - self.time_since_api_update
+        return ( (time_diff.days * 24 * 60 * 60) + time_diff.seconds )
+     
+    def get_log_level(self):
+        if(self.user_log_level != -1):
+            return self.user_log_level
+        elif(self.api_log_level != -1):
+            return self.api_log_level
         else:
             return DEFAULT_LOG_LEVEL
 
-    def _get_time_since_start(self):
-        time_diff = datetime.datetime.now() - self.last_update_time
-        return ( (time_diff.days * 24 * 60 * 60) + time_diff.seconds )
+    def update_api_log_level(self):
+        self.api_log_level = -1
+        self.msgs_since_api_update = 0
+        self.time_since_api_update = datetime.datetime.now()
 
-    def set_log_level(self, level, component):
-        if(not isinstance(level, int) or component == ""):
-            sys.stderr.write("ERROR: Format for calling set_log_level is set_log_level(integer level, string component)\n")
-            return 0
-        self.user_defined_log_levels[component] = level
-        return 1
+        # Retrieving the control API defined log level
+        api_url = ""
+        for line in open(MLOG_CONF_FILE):
+            line.strip()
+            if(re.match(r'^url\s+', line)):
+                api_url = line.split()[1]
+
+        if(api_url != ""):
+            subsystem_api_url = api_url + "/" + self.subsystem
+            try:
+                data = json.load(urllib2.urlopen(subsystem_api_url, timeout = 5))
+            except urllib2.HTTPError, e:
+                sys.stderr.write(e.code + "\n")
+            except urllib2.URLError, e:
+                sys.stderr.write("WARNING: Could not access control API at '"+subsystem_api_url+"'\n")
+                sys.stderr.write("           due to urllib2 error '"+str(e.args)+"'\n")
+                sys.stderr.write("         Will instead use default log level of '"+str(DEFAULT_LOG_LEVEL)+"'\n")
+            else:
+                max_matching_level = -1;
+                for constraint_set in data['log_levels']:
+                    level = constraint_set['level']
+                    constraints = constraint_set['constraints']
+                    if level <= max_matching_level:
+                        continue
+
+                    matches = 1
+                    for constraint in constraints:
+                        if constraint not in self.log_constraints:
+                            matches = 0
+                        elif self.log_constraints[constraint] != constraints[constraint]:
+                            matches = 0
+
+                    if matches == 1:
+                        max_matching_level = level
+
+                self.api_log_level = max_matching_level
+
+    def set_log_level(self, level):
+        if(level in MLOG_TEXT_TO_LEVEL):
+            level = MLOG_TEXT_TO_LEVEL[level]
+        elif(not isinstance(level, int) or level < LOG_LEVEL_MIN or level > LOG_LEVEL_MAX):
+            sys.stderr.write("ERROR: Format for calling set_log_level is set_log_level(integer level) where level can range from " + LOG_LEVEL_MIN + " to " + LOG_LEVEL_MAX + " or be one of '" + "', '".join(MLOG_TEXT_TO_LEVEL.keys()) + "'\n")
+            return 1
+
+        self.user_log_level = level
 
     def set_log_msg_check_count(self, count):
         if(not isinstance(count, int)):
             sys.stderr.write("ERROR: Format for calling set_log_msg_check_count is set_log_msg_check_count(integer count)\n")
-            return 0
+            return 1
+
         MSG_CHECK_COUNT = count
-        return 1
 
     def set_log_msg_check_interval(self, interval):
         if(not isinstance(interval, int)):
             sys.stderr.write("ERROR: Format for calling set_log_msg_check_interval is set_log_msg_check_interval(integer seconds)\n")
-            return 0
+            return 1
+
         MSG_CHECK_INTERVAL = interval
-        return 1
 
-    def use_all_api_log_levels(self):
-        self.user_defined_log_levels.clear()
-        return 1
+    def use_api_log_level(self):
+        self.user_log_level = -1
 
-    def use_api_log_level(self, component):
-        if(component == ""):
-            sys.stderr.write("ERROR: Format for calling use_api_log_level is use_api_log_level(string component)\n")
-            return 0
-        del self.user_defined_log_levels[component]
-        return 1
+    def logit(self, *args):
+        if len(args) < 2 or len(args) > 3 or (not isinstance(args[0], int) and args[0] not in MLOG_TEXT_TO_LEVEL) or (isinstance(args[0], int) and (args[0] < LOG_LEVEL_MIN or args[0] > LOG_LEVEL_MAX)):
+            sys.stderr.write("ERROR: Format for calling logit is logit(integer level, string message, string error_code [optional]) where level can range from " + LOG_LEVEL_MIN + " to " + LOG_LEVEL_MAX + " or be one of '" + "', '".join(MLOG_TEXT_TO_LEVEL.keys()) + "'\n")
+            return 1
 
-    def logit(self, level, component, message, error_code):
-        if(not isinstance(level, int) or component == ""):
-            sys.stderr.write("ERROR: Format for calling logit is logit(integer level, string component, string message, string error_code)\n")
-            return 0
+        level = args[0]
+        message = args[1]
+        error_code = ""
 
-        if(level < 0 or level > 6):
-            sys.stderr.write("ERROR: mlog level '"+level+"' is invalid, you must enter an integer between 0 and 6, inclusive.\n")
-            return 0
+        if len(args) == 3:
+            error_code = args[2]
+
+        if (not isinstance(level, int)):
+            level = MLOG_TEXT_TO_LEVEL[level]
 
         ++self.msg_count
-        ++self.last_update_msg_count
+        ++self.msgs_since_api_update
 
         user = getpass.getuser()
         ident = os.path.abspath(inspect.getfile(inspect.stack()[1][0]))
-        logopt = ""
 
-        if(self.last_update_msg_count >= MSG_CHECK_COUNT or self._get_time_since_start() >= MSG_CHECK_INTERVAL):
-            self._update_api_defined_log_levels()
+        if(self.msgs_since_api_update >= MSG_CHECK_COUNT or self._get_time_since_start() >= MSG_CHECK_INTERVAL):
+            self.update_api_log_level()
 
         # If this message is an emergency, send a copy to the emergency facility first.
         if(level == 0):
-            syslog.openlog(component+":"+user+":"+error_code+":"+ident, syslog.LOG_PID, EMERG_FACILITY)
+            syslog.openlog(self.subsystem+":"+user+":"+error_code+":"+ident, syslog.LOG_PID, EMERG_FACILITY)
             syslog.syslog(syslog.LOG_EMERG, message)
             syslog.closelog()
 
-        if(level <= self._get_log_level(component)):
-            syslog.openlog(component+":"+user+":"+error_code+":"+ident, syslog.LOG_PID, MSG_FACILITY)
-            syslog.syslog(LOG_LEVEL_TEXT[level], message)
+        if(level <= self.get_log_level()):
+            syslog.openlog(self.subsystem+":"+user+":"+error_code+":"+ident, syslog.LOG_PID, MSG_FACILITY)
+            syslog.syslog(SYSLOG_LEVELS[level], message)
             syslog.closelog()
-        else:
-            return 0
 
-        return 1
+        return 0
