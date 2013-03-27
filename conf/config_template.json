@@ -1,44 +1,51 @@
 {
     "global": {
-        "apiurl": "",
-        "services": [
-            "memcache",
-            "mcp_api",
-            "mlog",
-            "queue",
-            "upload"
-        ]
+        "api_url": "http://",
+        "default_log_level": 3,
+        "log_level_min": 0,
+        "log_level_max": 6,
+        "nginx_dir": "",
+        "subsystems": []
     },
     "mcp_api": {
-        "user": "",
-        "host": "",
+        "req_host": "",
+        "req_user": "",
         "dir": "",
         "version": 1
     },
     "memcache": {
+        "prog": "bin/clear_memcache.pl",
         "memhost": ""
     },
-    "mlog": {
-        "user": "",
-        "host": "",
-        "log_levels": {
-            "api": 3,
-            "mgrast": 3
-        }
-    },
-    "prod": {
-        "host": "",
-        "user": "",
-        "nginx_conf_dir": "",
-        "site": ""
+    "pipeline": {
+        "req_host": "",
+        "req_user": "",
+        "log_constraints": [ { "name" : "job",
+                               "type" : "integer" },
+                             { "name" : "stage",
+                               "type" : "integer" } ]
     },
     "queue": {
-        "host": "",
-        "user": ""
+        "req_host": "",
+        "req_user": "",
+        "queues": [],
+        "log_constraints": [ { "name" : "queue",
+                               "type" : "string",
+                               "choices" : [] } ]
     },
     "upload": {
-        "host": "",
-        "user": "",
+        "req_host": "",
+        "req_user": "",
         "lock_dir": ""
+    },
+    "web": {
+        "req_host": "",
+        "req_user": "",
+        "sites": [ { "name": "",
+                     "url":  "" },
+                   { "name": "",
+                     "url":  "" },
+                   { "name": "",
+                     "url":  "" } ]
     }
 }
