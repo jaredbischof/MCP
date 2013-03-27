@@ -138,9 +138,9 @@ class mlog(object):
 
                     matches = 1
                     for constraint in constraints:
-                        if constraint not in log_constraints:
+                        if constraint not in self.log_constraints:
                             matches = 0
-                        elif log_constraints[constraint] != constraints[constraint]:
+                        elif self.log_constraints[constraint] != constraints[constraint]:
                             matches = 0
 
                     if matches == 1:
@@ -204,7 +204,7 @@ class mlog(object):
             syslog.syslog(syslog.LOG_EMERG, message)
             syslog.closelog()
 
-        if(level <= self.get_log_level(component)):
+        if(level <= self.get_log_level()):
             syslog.openlog(self.subsystem+":"+user+":"+error_code+":"+ident, syslog.LOG_PID, MSG_FACILITY)
             syslog.syslog(SYSLOG_LEVELS[level], message)
             syslog.closelog()
