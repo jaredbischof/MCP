@@ -2,11 +2,12 @@ import glob, json, os, sys
 from subsystem import subsystem
 
 class mcp_api(subsystem):
-    actions = [ 'start', 'stop', 'restart', 'log' ]
+    actions = [ 'start', 'stop', 'restart', 'set_log', 'delete_log' ]
 
     def __init__(self, MCP_path):
         subsystem.__init__(self, MCP_path)
-        self.state['status'] = { 'site' : self.get_url_status(self.json_conf['global']['api_url']) }
+        # Don't need to check url_status here because if MCP API is available then this subsystem is online
+        self.state['status'] = { 'site' : 'online' }
 
     def start(self, params):
         action = 'start'
@@ -16,20 +17,23 @@ class mcp_api(subsystem):
             self.pass_mcp_cmd(action, params)
             return 0
  
+        self.log_msg("ACTION : attempting to initialize mcp_api")
         files = glob.glob(self.apidir+"/*")
         if len(files) != 0:
-            sys.stderr.write("ERROR: Cannot initialize mcp_api because API directory (" + self.apidir + ") is not empty\n")
+            sys.stderr.write("ERROR : Cannot initialize mcp_api because API directory (" + self.apidir + ") is not empty\n")
             return 1
 
-        print "Starting MCP API..."
         for subsystem in self.json_conf['global']['subsystems']:
             subsystem = subsystem.strip();
             module = __import__(subsystem)
             myclass = getattr(module, subsystem)
             mysubsystem = myclass(self.MCP_dir)
-            jstate = json.dumps(mysubsystem.state)
+            mysubsystem.update_status()
+            jstate = json.dumps(mysubsystem.state, sort_keys=True)
             f = open(self.apidir + "/" + subsystem, 'w')
             f.write(jstate)
+
+        self.log_msg("SUCCESS : mcp_api started")
 
     def stop(self, params):
         action = 'stop'
@@ -39,12 +43,15 @@ class mcp_api(subsystem):
             self.pass_mcp_cmd(action, params)
             return 0
 
+        self.log_msg("ACTION : attempting to stop mcp_api")
         for file_object in os.listdir(self.apidir):
             file_object_path = os.path.join(self.apidir, file_object)
             if os.path.isfile(file_object_path):
                 os.unlink(file_object_path)
             else:
                 shutil.rmtree(file_object_path)
+
+        self.log_msg("SUCCESS : mcp_api stopped")
 
     def restart(self, params):
         action = 'restart'
