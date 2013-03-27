@@ -1,15 +1,18 @@
 from subsystem import subsystem
 
 class queue(subsystem):
-    actions = [ 'start', 'stop', 'log' ]
+    actions = [ 'start', 'stop', 'set_log', 'delete_log' ]
 
     def __init__(self, MCP_path):
         subsystem.__init__(self, MCP_path)
-        self.queues = [ 'batch', 'fast' ]
+        self.state['log_constraints'] = self.json_conf['queue']['log_constraints']
         self.state['status'] = {}
+        for queue in self.json_conf['queue']['queues']:
+            self.state['status'][queue] = ''
 
+    def update_status(self):
         # getting status of queues
-        for queue in self.queues:
+        for queue in self.json_conf['queue']['queues']:
             sout, serr = self.run_cmd("/usr/local/bin/qstat -Q " + queue)
             lines = sout.splitlines()
             status = 'online' if lines[len(lines)-1].split()[3] == 'yes' else 'offline'
@@ -27,9 +30,9 @@ class queue(subsystem):
             return 0
 
         queue = params[0]
-        print "ACTION: Starting " + queue + " queue"
+        self.log_msg("ACTION : attempting to start " + queue + " queue")
         sout, serr = self.run_cmd("/usr/local/bin/qstart " + queue)
-        print "SUCCESS: " + queue + " queue started!"
+        self.log_msg("SUCCESS : " + queue + " queue started")
 
     def stop(self, params):
         action = 'stop'
@@ -43,6 +46,6 @@ class queue(subsystem):
             return 0
 
         queue = params[0]
-        print "ACTION: Stopping " + queue + " queue"
+        self.log_msg("ACTION : attempting to stop " + queue + " queue")
         sout, serr = self.run_cmd("/usr/local/bin/qstop " + queue)
-        print "SUCCESS: " + queue + " queue stopped!"
+        self.log_msg("SUCCESS : " + queue + " queue stopped")
