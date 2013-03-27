@@ -2,14 +2,20 @@ import glob, json, os, sys
 from subsystem import subsystem
 
 class web(subsystem):
-    actions = [ 'start', 'stop', 'log' ]
+    actions = [ 'start', 'stop', 'set_log', 'delete_log' ]
 
     def __init__(self, MCP_path):
         subsystem.__init__(self, MCP_path)
         self.sites = []
-        self.state['status'] = {}
         for site in self.json_conf['web']['sites']:
             self.sites.append(site['name'])
+
+        self.state['status'] = {}
+        for site in self.json_conf['web']['sites']:
+            self.state['status'][site['name']] = ''
+
+    def update_status(self):
+        for site in self.json_conf['web']['sites']:
             self.state['status'][site['name']] = self.get_url_status(site['url'])
 
     def start(self, params):
@@ -27,6 +33,7 @@ class web(subsystem):
             sys.stderr.write("ERROR: '" + site + "' is not a valid site ('" + "', '".join(self.sites) + "')")
             return 1
 
+        self.log_msg("ACTION : attempting to put the site " + site + " online")
         nginx_config_file = self.json_conf['global']['nginx_dir'] + "/" + site + ".conf"
         nginx_up_config_file = self.json_conf['global']['nginx_dir'] + "/" + site + ".up"
         os.unlink(nginx_config_file)
@@ -34,6 +41,7 @@ class web(subsystem):
         sout, serr = self.run_cmd("/sbin/service nginx reload")
         if sout != "": sys.stdout.write(sout + "\n")
         if serr != "": sys.stdout.write(serr + "\n")
+        self.log_msg("SUCCESS : site: " + site + " has been put online")
 
     def stop(self, params):
         action = 'stop'
@@ -50,6 +58,7 @@ class web(subsystem):
             sys.stderr.write("ERROR: '" + site + "' is not a valid site ('" + "', '".join(self.sites) + "')")
             return 1
 
+        self.log_msg("ACTION : attempting to put the site " + site + " offline")
         nginx_config_file = self.json_conf['global']['nginx_dir'] + "/" + site + ".conf"
         nginx_down_config_file = self.json_conf['global']['nginx_dir'] + "/" + site + ".down"
         os.unlink(nginx_config_file)
@@ -57,3 +66,4 @@ class web(subsystem):
         sout, serr = self.run_cmd("/sbin/service nginx reload")
         if sout != "": sys.stdout.write(sout + "\n")
         if serr != "": sys.stdout.write(serr + "\n")
+        self.log_msg("SUCCESS : site: " + site + " has been taken offline")
