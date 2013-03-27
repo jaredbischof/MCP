@@ -2,7 +2,7 @@ import glob, json, os, sys
 from subsystem import subsystem
 
 class web(subsystem):
-    actions = [ 'start', 'stop', 'set_log', 'delete_log' ]
+    actions = [ 'start', 'stop', 'set_log' ]
 
     def __init__(self, MCP_path):
         subsystem.__init__(self, MCP_path)

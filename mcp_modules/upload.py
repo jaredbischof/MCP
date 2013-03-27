@@ -2,7 +2,7 @@ import os, json, sys
 from subsystem import subsystem
 
 class upload(subsystem):
-    actions = [ 'lock_page', 'unlock_page', 'set_log', 'delete_log' ]
+    actions = [ 'lock_page', 'unlock_page', 'set_log' ]
 
     def __init__(self, MCP_path):
         subsystem.__init__(self, MCP_path)

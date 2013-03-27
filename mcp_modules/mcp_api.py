@@ -2,7 +2,7 @@ import glob, json, os, sys
 from subsystem import subsystem
 
 class mcp_api(subsystem):
-    actions = [ 'start', 'stop', 'restart', 'set_log', 'delete_log' ]
+    actions = [ 'start', 'stop', 'restart', 'set_log' ]
 
     def __init__(self, MCP_path):
         subsystem.__init__(self, MCP_path)

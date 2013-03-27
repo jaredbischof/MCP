@@ -1,7 +1,7 @@
 from subsystem import subsystem
 
 class memcache(subsystem):
-    actions = [ 'clear', 'set_log', 'delete_log' ]
+    actions = [ 'clear', 'set_log' ]
 
     def __init__(self, MCP_path):
         subsystem.__init__(self, MCP_path)
