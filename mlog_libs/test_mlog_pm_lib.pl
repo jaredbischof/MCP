@@ -33,4 +33,4 @@ logit(4, "my test message at log level 4 with constraints job=3 and stage=350");
 
 ################################################################################
 
-logit('emergency', "this program is finished");
+#logit('emergency', "this program is finished");
