@@ -94,9 +94,9 @@ set_log_level(integer level) : Sets the log level. Only use this if you wish to 
 
 =back
 
-set_log_msg_check_count(integer count): used to set the number the messages that mlog will log before querying the control API for the log level of all components (default is 100 messages).
+set_log_msg_check_count(integer count): used to set the number the messages that mlog will log before querying the control API for the log level (default is 100 messages).
 
-set_log_msg_check_interval(integer seconds): used to set the interval, in seconds, that will be allowed to pass before mlog will query the control API for the log level of the given component (default is 300 seconds).
+set_log_msg_check_interval(integer seconds): used to set the interval, in seconds, that will be allowed to pass before mlog will query the control API for the log level (default is 300 seconds).
 
 update_api_log_level() : Checks the control API for the currently set log level.
 
