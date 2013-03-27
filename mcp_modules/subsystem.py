@@ -82,7 +82,12 @@ class subsystem (object):
         action_params = [ 'level' ]
         action_param_settings = { 'level' : [ int, "Log level to set for " + self.subsystem + " (" + str(self.log_level_min) + "-" + str(self.log_level_max) + ")" ] }
         desc = "description: this action adds or sets the log level for the '" + self.subsystem + "' subsystem with any added options as contraints for this log setting"
-        for c in self.json_conf[self.subsystem]['log_constraints']:
+
+        log_constraints = {}
+        if 'log_constraints' in self.json_conf[self.subsystem]:
+            log_constraints = self.json_conf[self.subsystem]['log_constraints']
+
+        for c in log_constraints:
             name = c['name']
             type = c['type']
             choices = []
@@ -146,7 +151,12 @@ class subsystem (object):
         action_params = []
         action_param_settings = {}
         desc = "description: this action adds or sets the log level for the '" + self.subsystem + "' subsystem with any added options as contraints for this log setting"
-        for c in self.json_conf[self.subsystem]['log_constraints']:
+
+        log_constraints = {}
+        if 'log_constraints' in self.json_conf[self.subsystem]:
+            log_constraints = self.json_conf[self.subsystem]['log_constraints']
+
+        for c in log_constraints:
             name = c['name']
             type = c['type']
             choices = []
