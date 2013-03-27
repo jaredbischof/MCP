@@ -117,14 +117,18 @@ class subsystem (object):
         self.update_state_from_api()
         self.update_status()
 
+        api_constraints = {}
+        for key, value in aparams.iteritems():
+            api_constraints[key] = str(value)
+
         constraints_found = 0
         for log_level_set in self.state['log_levels']:
-            if log_level_set['constraints'] == aparams:
+            if log_level_set['constraints'] == api_constraints:
                 log_level_set['level'] = level
                 constraints_found = 1
 
         if constraints_found == 0:
-            self.state['log_levels'].append( { 'level' : level, 'constraints' : aparams } )
+            self.state['log_levels'].append( { 'level' : level, 'constraints' : api_constraints } )
 
         self.state['updated'] = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
         jstate = json.dumps(self.state, sort_keys=True)
