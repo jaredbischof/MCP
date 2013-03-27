@@ -54,9 +54,8 @@ mlog
 A library for sending MG-RAST logging to syslog.
 
 =head1 METHODS
-@EXPORT = qw(init_mlog logit get_log_level set_log_level set_log_msg_check_count set_log_msg_check_interval update_api_log_level use_api_log_level);
 
-init_mlog(string subsystem, hashref constraints): Initializes mlog. You should call this at the beginning of your program.
+init_mlog(string subsystem, hashref constraints): Initializes mlog. You should call this at the beginning of your program. Constraints are optional.
 
 logit(int level, string message, string error_code): sends mgrast log message to syslog.
 
@@ -105,7 +104,15 @@ use_api_log_level() : Removes the user-defined log level and tells mlog to use t
 =cut
 
 sub init_mlog {
-    ($subsystem, $log_constraints) = @_;
+    my ($sub, $lc) = @_;
+    unless(defined $sub) {
+        print STDERR "ERROR: You must define a subsystem when calling init_log()\n";
+        return 1;
+    }
+    $subsystem = $sub;
+    if(defined $lc) {
+        $log_constraints = $lc;
+    }
     $user_log_level = -1;
     $msg_count = 0;
     update_api_log_level();
@@ -179,7 +186,7 @@ sub set_log_level {
     my ($level) = @_;
     if(exists $MLOG_TEXT_TO_LEVEL{$level}) {
         $level = $MLOG_TEXT_TO_LEVEL{$level};
-    } elsif($level !~ /^\d+$/ || $level <= $LOG_LEVEL_MIN || $level >= $LOG_LEVEL_MAX) {
+    } elsif($level !~ /^\d+$/ || $level < $LOG_LEVEL_MIN || $level > $LOG_LEVEL_MAX) {
         print STDERR "ERROR: Format for calling set_log_level is set_log_level(integer level) where level can range from $LOG_LEVEL_MIN to $LOG_LEVEL_MAX or be one of '".join("', '",keys %MLOG_TEXT_TO_LEVEL)."'\n";
         return 1;
     }
@@ -212,7 +219,7 @@ sub logit {
     my ($level, $message, $error_code) = @_;
     if(@_ < 2 || @_ > 3 ||
        ($level !~ /^\d+$/ && (! exists $MLOG_TEXT_TO_LEVEL{$level})) ||
-       ($level =~ /^\d+$/ && ($level <= $LOG_LEVEL_MIN || $level >= $LOG_LEVEL_MAX))) {
+       ($level =~ /^\d+$/ && ($level < $LOG_LEVEL_MIN || $level > $LOG_LEVEL_MAX))) {
         print STDERR "ERROR: Format for calling logit is logit(integer level, string message, string error_code [optional]) where level can range from $LOG_LEVEL_MIN to $LOG_LEVEL_MAX or be one of '".join("', '",keys %MLOG_TEXT_TO_LEVEL)."'\n";
         return 1;
     }
@@ -238,7 +245,7 @@ sub logit {
     my $logopt = "";
 
     if($msgs_since_api_update >= $MSG_CHECK_COUNT || _get_time_since_start() >= $MSG_CHECK_INTERVAL) {
-        init_mlog();
+        update_api_log_level();
     }
 
     # If this message is an emergency, send a copy to the emergency facility first.
