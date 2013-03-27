@@ -83,24 +83,21 @@ class subsystem (object):
         action_param_settings = { 'level' : [ int, "Log level to set for " + self.subsystem + " (" + str(self.log_level_min) + "-" + str(self.log_level_max) + ")" ] }
         desc = "description: this action adds or sets the log level for the '" + self.subsystem + "' subsystem with any added options as contraints for this log setting"
 
-        log_constraints = {}
         if 'log_constraints' in self.json_conf[self.subsystem]:
-            log_constraints = self.json_conf[self.subsystem]['log_constraints']
-
-        for c in log_constraints:
-            name = c['name']
-            type = c['type']
-            choices = []
-            if 'choices' in c:
-                choices = c['choices']
-            action_params.append("--" + name)
-            if type == "string":
-                action_param_settings["--" + name] = [ str, ", ".join(choices) ]
-            elif type == "integer":
-                action_param_settings["--" + name] = [ int, "integer value" ]
-            else:
-                sys.stderr.write("ERROR: Unknown log constraint type '" + type + "'. Must be of type 'string' or 'integer'")
-                return 1
+            for c in self.json_conf[self.subsystem]['log_constraints']:
+                name = c['name']
+                type = c['type']
+                choices = []
+                if 'choices' in c:
+                    choices = c['choices']
+                action_params.append("--" + name)
+                if type == "string":
+                    action_param_settings["--" + name] = [ str, ", ".join(choices) ]
+                elif type == "integer":
+                    action_param_settings["--" + name] = [ int, "integer value" ]
+                else:
+                    sys.stderr.write("ERROR: Unknown log constraint type '" + type + "'. Must be of type 'string' or 'integer'")
+                    return 1
 
         aparams = self.parse_action_params(action, action_params, action_param_settings, desc, params)
 
@@ -152,24 +149,21 @@ class subsystem (object):
         action_param_settings = {}
         desc = "description: this action adds or sets the log level for the '" + self.subsystem + "' subsystem with any added options as contraints for this log setting"
 
-        log_constraints = {}
         if 'log_constraints' in self.json_conf[self.subsystem]:
-            log_constraints = self.json_conf[self.subsystem]['log_constraints']
-
-        for c in log_constraints:
-            name = c['name']
-            type = c['type']
-            choices = []
-            if 'choices' in c:
-                choices = c['choices']
-            action_params.append("--" + name)
-            if type == "string":
-                action_param_settings["--" + name] = [ str, ", ".join(choices) ]
-            elif type == "integer":
-                action_param_settings["--" + name] = [ int, "integer value" ]
-            else:
-                sys.stderr.write("ERROR: Unknown log constraint type '" + type + "'. Must be of type 'string' or 'integer'\n")
-                return 1
+            for c in self.json_conf[self.subsystem]['log_constraints']:
+                name = c['name']
+                type = c['type']
+                choices = []
+                if 'choices' in c:
+                    choices = c['choices']
+                action_params.append("--" + name)
+                if type == "string":
+                    action_param_settings["--" + name] = [ str, ", ".join(choices) ]
+                elif type == "integer":
+                    action_param_settings["--" + name] = [ int, "integer value" ]
+                else:
+                    sys.stderr.write("ERROR: Unknown log constraint type '" + type + "'. Must be of type 'string' or 'integer'\n")
+                    return 1
 
         aparams = self.parse_action_params(action, action_params, action_param_settings, desc, params)
 
