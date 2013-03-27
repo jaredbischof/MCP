@@ -5,6 +5,14 @@ import os
 import json
 import sys
 import re
+import syslog
+import getpass
+
+component = "MCP"
+user = getpass.getuser()
+error_code = "INFO"
+ident = "MCP"
+syslog.openlog(component+":"+user+":"+error_code+":"+ident, syslog.LOG_PID, syslog.LOG_LOCAL1)
 
 # Getting path to MCP
 MCP_path = os.path.realpath(__file__)
@@ -37,8 +45,14 @@ def main():
         mysubsystem = myclass(MCP_path)
         action, action_params = mysubsystem.parse_subsystem_params(params)
         myaction = getattr(mysubsystem, action)
+        if(len(params) == 1):
+            msg = "Calling the subsystem: " + subsystem + " with the action: " + action
+        else:
+            msg = "Calling the subsystem: " + subsystem + " with the action: " + action + " and the parameters: " + ", ".join(params[1:])
+        syslog.syslog(syslog.LOG_INFO, msg)
         myaction(action_params)
 
+    syslog.closelog()
     return 0
 
 if __name__ == "__main__":
