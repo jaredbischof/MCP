@@ -8,36 +8,34 @@ DESCRIPTION
 METHODS
        mlog(string subsystem, hashref constraints): Initializes mlog. You should call this at the beginning of your program. Constraints are optional.
 
-       logit(int level, string message, string error_code): sends mgrast log message to syslog.
+       logit(int level, string message): sends mgrast log message to syslog.
 
        *         level: (0-6) The logging level for this message is compared to the logging level that has been set in mlog.  If it is <= the set logging level, the
                  message will be sent to syslog, otherwise it will be ignored.  Logging level is set to 6 if MG-RAST control API cannot be reached and the user does
-                 not set the log level. Log level can also be entered as string (e.g. 'debug')
+                 not set the log level. Log level can also be entered as string (e.g. 'DEBUG')
 
        *          message: This is the log message.
-
-       *          error_code [optional]: The error code for this log message.
 
        get_log_level(): Returns the current log level as an integer.
 
        set_log_level(integer level) : Sets the log level. Only use this if you wish to override the log levels that are defined by the control API. Can also be entered
-       as string (e.g. 'debug')
+       as string (e.g. 'DEBUG')
 
        *          level : priority
 
-       *          0 : emergency - vital component is down
+       *          0 : EMERGENCY - vital component is down
 
-       *          1 : alert - non-vital component is down
+       *          1 : ALERT - non-vital component is down
 
-       *          2 : error - error that prevents proper operation
+       *          2 : ERROR - error that prevents proper operation
 
-       *          3 : warning - error, but does not prevent operation
+       *          3 : WARNING - error, but does not prevent operation
 
-       *          4 : debug - lowest level of debug
+       *          4 : DEBUG - lowest level of debug
 
-       *          5 : debug2 - second level of debug
+       *          5 : DEBUG2 - second level of debug
 
-       *          6 : debug3 - highest level of debug
+       *          6 : DEBUG3 - highest level of debug
 
        set_log_msg_check_count(integer count): used to set the number the messages that mlog will log before querying the control API for the log level (default is 100
        messages).
@@ -66,13 +64,14 @@ MSG_FACILITY = syslog.LOG_LOCAL1
 EMERG_FACILITY = syslog.LOG_LOCAL0
 SYSLOG_LEVELS = [ syslog.LOG_EMERG, syslog.LOG_ALERT, syslog.LOG_CRIT, syslog.LOG_ERR,
                   syslog.LOG_WARNING, syslog.LOG_NOTICE, syslog.LOG_INFO, syslog.LOG_DEBUG ]
-MLOG_TEXT_TO_LEVEL = { 'emergency' : 0,
-                       'alert' : 1,
-                       'error' : 2,
-                       'warning' : 3,
-                       'debug' : 4,
-                       'debug2' : 5,
-                       'debug3' : 6 };
+MLOG_TEXT_TO_LEVEL = { 'EMERGENCY' : 0,
+                       'ALERT' : 1,
+                       'ERROR' : 2,
+                       'WARNING' : 3,
+                       'DEBUG' : 4,
+                       'DEBUG2' : 5,
+                       'DEBUG3' : 6 };
+MLOG_LEVELS = [ 'EMERGENCY', 'ALERT', 'ERROR', 'WARNING', 'DEBUG', 'DEBUG2', 'DEBUG3' ];
 
 class mlog(object):
     """
@@ -175,16 +174,12 @@ class mlog(object):
         self.user_log_level = -1
 
     def logit(self, *args):
-        if len(args) < 2 or len(args) > 3 or (not isinstance(args[0], int) and args[0] not in MLOG_TEXT_TO_LEVEL) or (isinstance(args[0], int) and (args[0] < LOG_LEVEL_MIN or args[0] > LOG_LEVEL_MAX)):
-            sys.stderr.write("ERROR: Format for calling logit is logit(integer level, string message, string error_code [optional]) where level can range from " + LOG_LEVEL_MIN + " to " + LOG_LEVEL_MAX + " or be one of '" + "', '".join(MLOG_TEXT_TO_LEVEL.keys()) + "'\n")
+        if len(args) != 2 or (not isinstance(args[0], int) and args[0] not in MLOG_TEXT_TO_LEVEL) or (isinstance(args[0], int) and (args[0] < LOG_LEVEL_MIN or args[0] > LOG_LEVEL_MAX)):
+            sys.stderr.write("ERROR: Format for calling logit is logit(integer level, string message) where level can range from " + LOG_LEVEL_MIN + " to " + LOG_LEVEL_MAX + " or be one of '" + "', '".join(MLOG_TEXT_TO_LEVEL.keys()) + "'\n")
             return 1
 
         level = args[0]
         message = args[1]
-        error_code = ""
-
-        if len(args) == 3:
-            error_code = args[2]
 
         if (not isinstance(level, int)):
             level = MLOG_TEXT_TO_LEVEL[level]
@@ -200,12 +195,12 @@ class mlog(object):
 
         # If this message is an emergency, send a copy to the emergency facility first.
         if(level == 0):
-            syslog.openlog(self.subsystem+":"+user+":"+error_code+":"+ident, syslog.LOG_PID, EMERG_FACILITY)
+            syslog.openlog("[" + self.subsystem + "] [" + MLOG_LEVELS[level] + "] [" + user + "] [" + ident + "] ", syslog.LOG_PID, EMERG_FACILITY)
             syslog.syslog(syslog.LOG_EMERG, message)
             syslog.closelog()
 
         if(level <= self.get_log_level()):
-            syslog.openlog(self.subsystem+":"+user+":"+error_code+":"+ident, syslog.LOG_PID, MSG_FACILITY)
+            syslog.openlog("[" + self.subsystem + "] [" + MLOG_LEVELS[level] + "] [" + user + "] [" + ident + "] ", syslog.LOG_PID, MSG_FACILITY)
             syslog.syslog(SYSLOG_LEVELS[level], message)
             syslog.closelog()
 

@@ -25,13 +25,15 @@ my $MSG_FACILITY = 'local1';
 my $EMERG_FACILITY = 'local0';
 my @SYSLOG_LEVEL_TEXT  = ( 'emerg', 'alert', 'crit', 'err',
                            'warning', 'notice', 'info', 'debug' );
-my %MLOG_TEXT_TO_LEVEL = ( 'emergency' => 0,
-                           'alert' => 1, 
-                           'error' => 2,
-                           'warning' => 3,
-                           'debug' => 4,
-                           'debug2' => 5,
-                           'debug3' => 6 );
+my %MLOG_TEXT_TO_LEVEL = ( 'EMERGENCY' => 0,
+                           'ALERT' => 1, 
+                           'ERROR' => 2,
+                           'WARNING' => 3,
+                           'DEBUG' => 4,
+                           'DEBUG2' => 5,
+                           'DEBUG3' => 6 );
+my @MLOG_LEVELS = ( 'EMERGENCY', 'ALERT', 'ERROR',
+                    'WARNING', 'DEBUG', 'DEBUG2', 'DEBUG3' );
 
 my $subsystem = "";
 my $api_log_level = -1;
@@ -57,39 +59,37 @@ A library for sending MG-RAST logging to syslog.
 
 init_mlog(string subsystem, hashref constraints): Initializes mlog. You should call this at the beginning of your program. Constraints are optional.
 
-logit(int level, string message, string error_code): sends mgrast log message to syslog.
+logit(int level, string message): sends mgrast log message to syslog.
 
 =over 10
 
-=item * level: (0-6) The logging level for this message is compared to the logging level that has been set in mlog.  If it is <= the set logging level, the message will be sent to syslog, otherwise it will be ignored.  Logging level is set to 6 if MG-RAST control API cannot be reached and the user does not set the log level. Log level can also be entered as string (e.g. 'debug')
+=item * level: (0-6) The logging level for this message is compared to the logging level that has been set in mlog.  If it is <= the set logging level, the message will be sent to syslog, otherwise it will be ignored.  Logging level is set to 6 if MG-RAST control API cannot be reached and the user does not set the log level. Log level can also be entered as string (e.g. 'DEBUG')
 
 =item * message: This is the log message.
-
-=item * error_code [optional]: The error code for this log message.
 
 =back
 
 get_log_level(): Returns the current log level as an integer.
 
-set_log_level(integer level) : Sets the log level. Only use this if you wish to override the log levels that are defined by the control API. Can also be entered as string (e.g. 'debug')
+set_log_level(integer level) : Sets the log level. Only use this if you wish to override the log levels that are defined by the control API. Can also be entered as string (e.g. 'DEBUG')
 
 =over 10
 
 =item * level : priority
 
-=item * 0 : emergency - vital component is down
+=item * 0 : EMERGENCY - vital component is down
 
-=item * 1 : alert - non-vital component is down
+=item * 1 : ALERT - non-vital component is down
 
-=item * 2 : error - error that prevents proper operation
+=item * 2 : ERROR - error that prevents proper operation
 
-=item * 3 : warning - error, but does not prevent operation
+=item * 3 : WARNING - error, but does not prevent operation
 
-=item * 4 : debug - lowest level of debug
+=item * 4 : DEBUG - lowest level of debug
 
-=item * 5 : debug2 - second level of debug
+=item * 5 : DEBUG2 - second level of debug
 
-=item * 6 : debug3 - highest level of debug
+=item * 6 : DEBUG3 - highest level of debug
 
 =back
 
@@ -216,20 +216,16 @@ sub use_api_log_level {
 }
 
 sub logit {
-    my ($level, $message, $error_code) = @_;
-    if(@_ < 2 || @_ > 3 ||
+    my ($level, $message) = @_;
+    if(@_ != 2 ||
        ($level !~ /^\d+$/ && (! exists $MLOG_TEXT_TO_LEVEL{$level})) ||
        ($level =~ /^\d+$/ && ($level < $LOG_LEVEL_MIN || $level > $LOG_LEVEL_MAX))) {
-        print STDERR "ERROR: Format for calling logit is logit(integer level, string message, string error_code [optional]) where level can range from $LOG_LEVEL_MIN to $LOG_LEVEL_MAX or be one of '".join("', '",keys %MLOG_TEXT_TO_LEVEL)."'\n";
+        print STDERR "ERROR: Format for calling logit is logit(integer level, string message) where level can range from $LOG_LEVEL_MIN to $LOG_LEVEL_MAX or be one of '".join("', '",keys %MLOG_TEXT_TO_LEVEL)."'\n";
         return 1;
     }
 
     if($level !~ /^\d+$/) {
         $level = $MLOG_TEXT_TO_LEVEL{$level};
-    }
-
-    unless(defined $error_code) {
-        $error_code = "";
     }
 
     if($msg_count == 0 && $time_since_api_update eq "") {
@@ -251,14 +247,14 @@ sub logit {
     # If this message is an emergency, send a copy to the emergency facility first.
     if($level == 0) {
         setlogsock('unix');
-        openlog("$subsystem:$user:$error_code:$ident\[$$\]", $logopt, $EMERG_FACILITY);
+        openlog("[$subsystem] [$MLOG_LEVELS[$level]] [$user] [$ident] [$$]", $logopt, $EMERG_FACILITY);
         syslog($SYSLOG_LEVEL_TEXT[$level], "$message");
         closelog();
     }
 
     if($level <= get_log_level($subsystem)) {
         setlogsock('unix');
-        openlog("$subsystem:$user:$error_code:$ident\[$$\]", $logopt, $MSG_FACILITY);
+        openlog("[$subsystem] [$MLOG_LEVELS[$level]] [$user] [$ident] [$$]", $logopt, $MSG_FACILITY);
         syslog($SYSLOG_LEVEL_TEXT[$level], "$message");
         closelog();
     } else {
