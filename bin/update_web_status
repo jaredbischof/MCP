@@ -1,0 +1,39 @@
+#!/soft/packages/python/2.6/bin/python
+
+import argparse
+import json
+import os
+import shutil
+import sys
+import time
+import urllib
+
+def main():
+    parser = argparse.ArgumentParser(description='program for updating the web subsystem status in the control api')
+    args = parser.parse_args()
+
+    conf_file = open(os.path.dirname(__file__) + "/../conf/conf.json")
+    json_conf = json.load(conf_file)
+    api_dir = json_conf['global']['api_dir'] + "/" + str(json_conf['global']['api_version'])
+    api_fname = json_conf['global']['api_dir'] + "/" + str(json_conf['global']['api_version']) + "/web"
+
+    api_file = open(api_fname)
+    api_json = json.load(api_file)
+    api_json['updated'] = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
+    api_json['vars'] = {}
+
+    for site_name in json_conf['web']['vars']:
+        url = json_conf['web']['vars'][site_name]
+        code = urllib.urlopen(url).getcode()
+        if code == 200:
+            api_json['vars'][site_name] = 'online'
+        else:
+            api_json['vars'][site_name] = 'offline'
+
+    output_json = json.dumps(api_json, sort_keys=True)
+    f = open(api_fname + ".tmp", 'w')
+    f.write(output_json)
+    shutil.move(api_fname + ".tmp", api_fname)
+
+if __name__ == "__main__":
+    sys.exit( main() )

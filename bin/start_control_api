@@ -1,0 +1,47 @@
+#!/soft/packages/python/2.6/bin/python
+
+import argparse
+import glob
+import json
+import os
+import sys
+import time
+
+def main():
+    parser = argparse.ArgumentParser(description='program for starting the control api')
+    args = parser.parse_args()
+
+    conf_file = open(os.path.dirname(__file__) + "/../conf/conf.json")
+    json_conf = json.load(conf_file)
+    api_dir = json_conf['global']['api_dir'] + "/" + str(json_conf['global']['api_version'])
+
+    files = glob.glob(api_dir+"/*")
+    if len(files) != 0:
+        sys.stderr.write("ERROR : Cannot initialize the control API because the target directory (" + api_dir + ") is not empty\n")
+        return 1
+
+    for subsystem in json_conf['global']['subsystems']:
+        subsystem = subsystem.strip();
+        json_state = { 'log_levels': [ { 'level' : json_conf['global']['default_log_level'], 'constraints' : {} } ],
+                       'subsystem' : subsystem,
+                       'updated' : time.strftime("%Y-%m-%d %H:%M:%S", time.localtime()),
+                       'url' : json_conf['global']['api_url'] + "/" + str(json_conf['global']['api_version']) + "/" + subsystem
+                     }
+
+        if 'vars' in json_conf[subsystem].keys():
+            json_state['vars'] = {}
+            for var in json_conf[subsystem]['vars'].keys():
+                if subsystem == 'control_api':
+                    json_state['vars'][var] = "online"
+                else:
+                    json_state['vars'][var] = ""
+
+        if 'log_constraints' in json_conf[subsystem].keys():
+            json_state['log_constraints'] = json_conf[subsystem]['log_constraints']
+
+        output_json = json.dumps(json_state, sort_keys=True)
+        f = open(api_dir + "/" + subsystem, 'w')
+        f.write(output_json)
+
+if __name__ == "__main__":
+    sys.exit( main() )

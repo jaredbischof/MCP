@@ -1,0 +1,24 @@
+#!/soft/packages/python/2.6/bin/python
+
+import argparse
+import json
+import os
+import sys
+
+def main():
+    parser = argparse.ArgumentParser(description='program for starting the control api')
+    args = parser.parse_args()
+
+    conf_file = open(os.path.dirname(__file__) + "/../conf/conf.json")
+    json_conf = json.load(conf_file)
+    api_dir = json_conf['global']['api_dir'] + "/" + str(json_conf['global']['api_version'])
+
+    for file_object in os.listdir(api_dir):
+        file_object_path = os.path.join(api_dir, file_object)
+        if os.path.isfile(file_object_path):
+            os.unlink(file_object_path)
+        else:
+            shutil.rmtree(file_object_path)
+
+if __name__ == "__main__":
+    sys.exit( main() )

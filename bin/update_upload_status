@@ -1,0 +1,36 @@
+#!/soft/packages/python/2.6/bin/python
+
+import argparse
+import json
+import os
+import shutil
+import sys
+import time
+
+def main():
+    parser = argparse.ArgumentParser(description='program for updating the upload subsystem status in the control api')
+    args = parser.parse_args()
+
+    conf_file = open(os.path.dirname(__file__) + "/../conf/conf.json")
+    json_conf = json.load(conf_file)
+    lock_file = json_conf['upload']['lock_dir'] + "/upload.lock"
+    api_dir = json_conf['global']['api_dir'] + "/" + str(json_conf['global']['api_version'])
+    api_fname = json_conf['global']['api_dir'] + "/" + str(json_conf['global']['api_version']) + "/upload"
+
+    api_file = open(api_fname)
+    api_json = json.load(api_file)
+    api_json['updated'] = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
+    api_json['vars'] = {}
+
+    if os.path.isfile(lock_file):
+        api_json['vars']['upload_page'] = "offline"
+    else:
+        api_json['vars']['upload_page'] = "online"
+
+    output_json = json.dumps(api_json, sort_keys=True)
+    f = open(api_fname + ".tmp", 'w')
+    f.write(output_json)
+    shutil.move(api_fname + ".tmp", api_fname)
+
+if __name__ == "__main__":
+    sys.exit( main() )

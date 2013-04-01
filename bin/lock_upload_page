@@ -1,0 +1,23 @@
+#!/soft/packages/python/2.6/bin/python
+
+import argparse
+import json
+import os
+import sys
+
+def main():
+    parser = argparse.ArgumentParser(description='program for disabling the upload page')
+    args = parser.parse_args()
+
+    conf_file = open(os.path.dirname(__file__) + "/../conf/conf.json")
+    json_conf = json.load(conf_file)
+    lock_file = json_conf['upload']['lock_dir'] + "/upload.lock"
+
+    fh = file(lock_file, 'a')
+    try:
+        os.utime(lock_file, None)
+    finally:
+        fh.close()
+
+if __name__ == "__main__":
+    sys.exit( main() )

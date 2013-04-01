@@ -1,0 +1,46 @@
+#!/soft/packages/python/2.6/bin/python
+
+import argparse
+import getpass
+import os
+import inspect
+import syslog
+import sys
+
+MSG_FACILITY = syslog.LOG_LOCAL1
+EMERG_FACILITY = syslog.LOG_LOCAL0
+
+SYSLOG_LEVELS = { 'EMERG'   : syslog.LOG_EMERG,
+                  'ALERT'   : syslog.LOG_ALERT,
+                  'CRIT'    : syslog.LOG_CRIT,
+                  'ERR'     : syslog.LOG_ERR,
+                  'WARNING' : syslog.LOG_WARNING,
+                  'NOTICE'  : syslog.LOG_NOTICE,
+                  'INFO'    : syslog.LOG_INFO,
+                  'DEBUG'   : syslog.LOG_DEBUG }
+
+def main():
+    parser = argparse.ArgumentParser(description='program for logging messages to syslog')
+    parser.add_argument('log_level', metavar='log_level',
+                   help="One of the syslog levels which include: '" +
+                   "', '".join(SYSLOG_LEVELS.keys())+"'")
+    parser.add_argument('message', metavar='message',
+                   help='The message you would like to log.')
+    args = parser.parse_args()
+    log_level = args.log_level
+    message = args.message
+
+    user = getpass.getuser()
+    ident = os.path.abspath(__file__)
+
+    if log_level == 0:
+        syslog.openlog("[MCP] [" + log_level + "] [" + user + "] [" + ident + "] ", syslog.LOG_PID, EMERG_FACILITY)
+        syslog.syslog(syslog.LOG_EMERG, message)
+        syslog.closelog()
+
+    syslog.openlog("[MCP] [" + log_level + "] [" + user + "] [" + ident + "] ", syslog.LOG_PID, MSG_FACILITY)
+    syslog.syslog(SYSLOG_LEVELS[log_level], message)
+    syslog.closelog()
+
+if __name__ == "__main__":
+    sys.exit( main() )

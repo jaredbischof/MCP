@@ -1,0 +1,26 @@
+#!/soft/packages/python/2.6/bin/python
+
+import argparse
+import json
+import os
+import shlex
+import subprocess
+import sys
+
+def run_cmd(cmd_str):
+    cmd = shlex.split(str(cmd_str))
+    proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    sout, serr = proc.communicate()
+    if proc.returncode != 0 and serr != "":
+        print serr
+        exit(1)
+    return sout, serr
+
+def main():
+    parser = argparse.ArgumentParser(description='program for stopping the fast torque queue')
+    args = parser.parse_args()
+
+    sout, serr = run_cmd("/usr/local/bin/qstop fast")
+
+if __name__ == "__main__":
+    sys.exit( main() )

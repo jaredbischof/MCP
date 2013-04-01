@@ -1,0 +1,78 @@
+#!/soft/packages/python/2.6/bin/python
+
+import argparse
+import json
+import os
+import shutil
+import sys
+import time
+
+def main():
+    parser = argparse.ArgumentParser(description='program for setting a log level in the control api')
+    parser.add_argument('subsystem', metavar='subsystem',
+                   help="This is the subsystem for which you are setting a log level")
+    parser.add_argument('level', metavar='level',
+                   help="This is the log level you are setting")
+    parser.add_argument('log_constraints', metavar='log_constraints', nargs=argparse.REMAINDER,
+                   help="Any trailing options specified will be considered a set of log constraints or attributes to which this log level should be applied")
+
+    args = parser.parse_args()
+    subsystem = args.subsystem
+    level = args.level
+    log_constraints = args.log_constraints
+
+    conf_file = open(os.path.dirname(__file__) + "/../conf/conf.json")
+    json_conf = json.load(conf_file)
+    api_fname = json_conf['global']['api_dir'] + "/" + str(json_conf['global']['api_version']) + "/" + subsystem
+    api_file = open(api_fname)
+    json_state = json.load(api_file)
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument('subsystem', metavar='subsystem',
+                   help="This is the subsystem for which you are setting a log level")
+    parser.add_argument('level', metavar='level',
+                   help="This is the log level you are setting")
+
+    if 'log_constraints' in json_conf[subsystem]:
+        for c in json_conf[subsystem]['log_constraints']:
+            name = c['name']
+            type = c['type']
+
+            if type == "string":
+                parser.add_argument("--" + name, type = str)
+            elif type == "integer":
+                parser.add_argument("--" + name, type = int)
+            else:
+                sys.stderr.write("ERROR: Unknown log constraint type '" + type + "'. Must be of type 'string' or 'integer'")
+                return 1
+
+    params = [ subsystem, level ]
+    params = params + log_constraints
+    constraints = vars(parser.parse_args(params))
+
+    del constraints['subsystem']
+    del constraints['level']
+    for i in constraints.keys():
+        if(constraints[i] == None):
+            del constraints[i]
+        elif(isinstance(constraints[i], int)):
+            constraints[i] = str(constraints[i])
+    
+    constraints_found = 0
+    for log_level_set in json_state['log_levels']:
+        if log_level_set['constraints'] == constraints:
+            log_level_set['level'] = int(level)
+            constraints_found = 1
+
+    if constraints_found == 0:
+        json_state['log_levels'].append( { 'level' : int(level), 'constraints' : constraints } )
+
+
+    output_json = json.dumps(json_state, sort_keys=True)
+
+    f = open(api_fname + ".tmp", 'w')
+    f.write(output_json)
+    shutil.move(api_fname + ".tmp", api_fname)
+
+if __name__ == "__main__":
+    sys.exit( main() )
