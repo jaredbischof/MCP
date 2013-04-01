@@ -2,68 +2,98 @@ import glob, json, os, sys
 from subsystem import subsystem
 
 class web(subsystem):
-    actions = [ 'start', 'stop', 'set_log' ]
-
     def __init__(self, MCP_path):
         subsystem.__init__(self, MCP_path)
-        self.sites = []
-        for site in self.json_conf['web']['sites']:
-            self.sites.append(site['name'])
 
-        self.state['status'] = {}
-        for site in self.json_conf['web']['sites']:
-            self.state['status'][site['name']] = ''
+    def update_status(self, params):
+        function = 'update_status'
+        desc = "description: this function updates the status of the web subsystem in the control api"
+        self.parse_function_params(function, [], {}, desc, params)
 
-    def update_status(self):
-        for site in self.json_conf['web']['sites']:
-            self.state['status'][site['name']] = self.get_url_status(site['url'])
+        self.run_action("log_msg", "ANY", [ "INFO", "'REQUEST : attempting to update the web subsystem api status'" ])
+        self.run_action("update_web_status", self.get_req_login(function), [])
+        self.run_action("log_msg", "ANY", [ "INFO", "'SUCCESS : web subsystem api status updated'" ])
 
-    def start(self, params):
-        action = 'start'
-        action_params = [ 'web_site' ]
-        action_param_settings = { 'web_site' : [ str, "Web site to start ('" + "', '".join(self.sites) + "')"] }
-        desc = "description: this action configures and restarts nginx to make the selected web_site active"
-        self.parse_action_params(action, action_params, action_param_settings, desc, params)
-        if self.check_userhost() == -1:
-            self.pass_mcp_cmd(action, params)
-            return 0
+    def start_prod(self, params):
+        function = 'start_prod'
+        desc = "description: this function configures and restarts nginx to turn on the MG-RAST production website"
+        self.parse_function_params(function, [], {}, desc, params)
 
-        site = params[0]
-        if(site not in self.sites):
-            sys.stderr.write("ERROR: '" + site + "' is not a valid site ('" + "', '".join(self.sites) + "')")
-            return 1
+        site_name = self.json_conf['web']['functions'][function]['name']
+        nginx_dir = self.json_conf['web']['functions'][function]['nginx_dir']
+        nginx_config_link = nginx_dir + "/" + site_name + ".conf"
+        nginx_config_file = nginx_dir + "/" + site_name + ".up"
 
-        self.log_msg("ACTION : attempting to put the site " + site + " online")
-        nginx_config_file = self.json_conf['global']['nginx_dir'] + "/" + site + ".conf"
-        nginx_up_config_file = self.json_conf['global']['nginx_dir'] + "/" + site + ".up"
-        os.unlink(nginx_config_file)
-        os.symlink(nginx_up_config_file, nginx_config_file)
-        sout, serr = self.run_cmd("/sbin/service nginx reload")
-        if sout != "": sys.stdout.write(sout + "\n")
-        if serr != "": sys.stdout.write(serr + "\n")
-        self.log_msg("SUCCESS : site: " + site + " has been put online")
+        self.run_action("log_msg", "ANY", [ "INFO", "'REQUEST : attempting to turn on the MG_RAST production website'" ])
+        self.run_action("edit_nginx_config", self.get_req_login(function), [ nginx_config_link, nginx_config_file ])
+        self.run_action("log_msg", "ANY", [ "INFO", "'SUCCESS : MG_RAST production website started'" ])
 
-    def stop(self, params):
-        action = 'stop'
-        action_params = [ 'web_site' ]
-        action_param_settings = { 'web_site' : [ str, "Web site to stop ('" + "', '".join(self.sites) + "')"] }
-        desc = "description: this action configures and restarts nginx to make the selected web_site inactive"
-        self.parse_action_params(action, action_params, action_param_settings, desc, params)
-        if self.check_userhost() == -1:
-            self.pass_mcp_cmd(action, params)
-            return 0
+    def stop_prod(self, params):
+        function = 'stop_prod'
+        desc = "description: this function configures and restarts nginx to turn off the MG-RAST production website"
+        self.parse_function_params(function, [], {}, desc, params)
 
-        site = params[0]
-        if(site not in self.sites):
-            sys.stderr.write("ERROR: '" + site + "' is not a valid site ('" + "', '".join(self.sites) + "')")
-            return 1
+        site_name = self.json_conf['web']['functions'][function]['name']
+        nginx_dir = self.json_conf['web']['functions'][function]['nginx_dir']
+        nginx_config_link = nginx_dir + "/" + site_name + ".conf"
+        nginx_config_file = nginx_dir + "/" + site_name + ".down"
 
-        self.log_msg("ACTION : attempting to put the site " + site + " offline")
-        nginx_config_file = self.json_conf['global']['nginx_dir'] + "/" + site + ".conf"
-        nginx_down_config_file = self.json_conf['global']['nginx_dir'] + "/" + site + ".down"
-        os.unlink(nginx_config_file)
-        os.symlink(nginx_down_config_file, nginx_config_file)
-        sout, serr = self.run_cmd("/sbin/service nginx reload")
-        if sout != "": sys.stdout.write(sout + "\n")
-        if serr != "": sys.stdout.write(serr + "\n")
-        self.log_msg("SUCCESS : site: " + site + " has been taken offline")
+        self.run_action("log_msg", "ANY", [ "INFO", "'REQUEST : attempting to turn off the MG_RAST production website'" ])
+        self.run_action("edit_nginx_config", self.get_req_login(function), [ nginx_config_link, nginx_config_file ])
+        self.run_action("log_msg", "ANY", [ "INFO", "'SUCCESS : MG_RAST production website stopped'" ])
+
+    def start_dev(self, params):
+        function = 'start_dev'
+        desc = "description: this function configures and restarts nginx to turn on the MG-RAST dev website"
+        self.parse_function_params(function, [], {}, desc, params)
+
+        site_name = self.json_conf['web']['functions'][function]['name']
+        nginx_dir = self.json_conf['web']['functions'][function]['nginx_dir']
+        nginx_config_link = nginx_dir + "/" + site_name + ".conf"
+        nginx_config_file = nginx_dir + "/" + site_name + ".up"
+
+        self.run_action("log_msg", "ANY", [ "INFO", "'REQUEST : attempting to turn on the MG_RAST dev website'" ])
+        self.run_action("edit_nginx_config", self.get_req_login(function), [ nginx_config_link, nginx_config_file ])
+        self.run_action("log_msg", "ANY", [ "INFO", "'SUCCESS : MG_RAST dev website started'" ])
+
+    def stop_dev(self, params):
+        function = 'stop_dev'
+        desc = "description: this function configures and restarts nginx to turn off the MG-RAST dev website"
+        self.parse_function_params(function, [], {}, desc, params)
+
+        site_name = self.json_conf['web']['functions'][function]['name']
+        nginx_dir = self.json_conf['web']['functions'][function]['nginx_dir']
+        nginx_config_link = nginx_dir + "/" + site_name + ".conf"
+        nginx_config_file = nginx_dir + "/" + site_name + ".down"
+
+        self.run_action("log_msg", "ANY", [ "INFO", "'REQUEST : attempting to turn off the MG_RAST dev website'" ])
+        self.run_action("edit_nginx_config", self.get_req_login(function), [ nginx_config_link, nginx_config_file ])
+        self.run_action("log_msg", "ANY", [ "INFO", "'SUCCESS : MG_RAST dev website stopped'" ])
+
+    def start_api(self, params):
+        function = 'start_api'
+        desc = "description: this function configures and restarts nginx to turn on the MG-RAST API"
+        self.parse_function_params(function, [], {}, desc, params)
+
+        site_name = self.json_conf['web']['functions'][function]['name']
+        nginx_dir = self.json_conf['web']['functions'][function]['nginx_dir']
+        nginx_config_link = nginx_dir + "/" + site_name + ".conf"
+        nginx_config_file = nginx_dir + "/" + site_name + ".up"
+
+        self.run_action("log_msg", "ANY", [ "INFO", "'REQUEST : attempting to turn on the MG_RAST API'" ])
+        self.run_action("edit_nginx_config", self.get_req_login(function), [ nginx_config_link, nginx_config_file ])
+        self.run_action("log_msg", "ANY", [ "INFO", "'SUCCESS : MG_RAST API started'" ])
+
+    def stop_api(self, params):
+        function = 'stop_api'
+        desc = "description: this function configures and restarts nginx to turn off the MG-RAST API"
+        self.parse_function_params(function, [], {}, desc, params)
+
+        site_name = self.json_conf['web']['functions'][function]['name']
+        nginx_dir = self.json_conf['web']['functions'][function]['nginx_dir']
+        nginx_config_link = nginx_dir + "/" + site_name + ".conf"
+        nginx_config_file = nginx_dir + "/" + site_name + ".down"
+
+        self.run_action("log_msg", "ANY", [ "INFO", "'REQUEST : attempting to turn off the MG_RAST API'" ])
+        self.run_action("edit_nginx_config", self.get_req_login(function), [ nginx_config_link, nginx_config_file ])
+        self.run_action("log_msg", "ANY", [ "INFO", "'SUCCESS : MG_RAST API stopped'" ])

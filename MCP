@@ -8,16 +8,13 @@ import re
 import syslog
 import getpass
 
-component = "MCP"
-user = getpass.getuser()
-error_code = "INFO"
-ident = "MCP"
-syslog.openlog(component+":"+user+":"+error_code+":"+ident, syslog.LOG_PID, syslog.LOG_LOCAL1)
-
 # Getting path to MCP
 MCP_path = os.path.realpath(__file__)
 matchObj = re.match(r'(^.*\/)', MCP_path)
 MCP_dir = matchObj.group(0)
+
+user = getpass.getuser()
+syslog.openlog("[MCP] [INFO] [" + user + "] [" + MCP_path + "] ", syslog.LOG_PID, syslog.LOG_LOCAL1)
 
 # Adding modules directory to path
 path = list(sys.path)
@@ -32,7 +29,7 @@ def main():
                    help="An MG-RAST subsystem. The current list of subsystems includes: '" + 
                    "', '".join(json_conf["global"]["subsystems"])+"'")
     parser.add_argument('params', metavar='params', nargs=argparse.REMAINDER,
-                   help='Additional arguments should specify an action followed by action parameters.')
+                   help='Additional arguments should specify a function followed by function parameters.')
     args = parser.parse_args()
     subsystem = args.subsystem
     params = args.params
@@ -43,14 +40,14 @@ def main():
         myclass = getattr(module, subsystem)
         # Create the python class instance dynamically
         mysubsystem = myclass(MCP_path)
-        action, action_params = mysubsystem.parse_subsystem_params(params)
-        myaction = getattr(mysubsystem, action)
+        function, function_params = mysubsystem.parse_subsystem_params(params)
+        myfunction = getattr(mysubsystem, function)
         if(len(params) == 1):
-            msg = "Calling the subsystem: " + subsystem + " with the action: " + action
+            msg = "Calling the subsystem: " + subsystem + " with the function: " + function
         else:
-            msg = "Calling the subsystem: " + subsystem + " with the action: " + action + " and the parameters: " + ", ".join(params[1:])
+            msg = "Calling the subsystem: " + subsystem + " with the function: " + function + " and the parameters: " + ", ".join(params[1:])
         syslog.syslog(syslog.LOG_INFO, msg)
-        myaction(action_params)
+        myfunction(function_params)
 
     syslog.closelog()
     return 0
