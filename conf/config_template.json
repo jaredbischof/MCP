@@ -1,51 +1,114 @@
 {
     "global": {
-        "api_url": "http://",
+        "api_url": "",
+        "api_dir": "",
+        "api_version": 1,
         "default_log_level": 3,
         "log_level_min": 0,
         "log_level_max": 6,
-        "nginx_dir": "",
-        "subsystems": []
+        "subsystems": [ "control_api", "memcache", "pipeline", "torque", "upload", "web" ]
     },
-    "mcp_api": {
-        "req_host": "",
-        "req_user": "",
-        "dir": "",
-        "version": 1
+    "control_api": {
+        "functions" : { "start":         { "req_host": "",
+                                           "req_user": "" },
+                        "stop":          { "req_host": "",
+                                           "req_user": "" },
+                        "restart":       { "req_host": "",
+                                           "req_user": "" },
+                        "set_log":       { "req_host": "",
+                                           "req_user": "" },
+                        "update_status": { "req_host": "",
+                                           "req_user": "" }
+                      },
+        "vars": { "control_api" : "" }
     },
     "memcache": {
-        "prog": "bin/clear_memcache.pl",
+        "functions" : { "clear":         { "req_host": "",
+                                           "req_user": "" },
+                        "set_log":       { "req_host": "",
+                                           "req_user": "" },
+                        "update_status": { "req_host": "",
+                                           "req_user": "" }
+                      },
         "memhost": ""
     },
     "pipeline": {
-        "req_host": "",
-        "req_user": "",
-        "log_constraints": [ { "name" : "job",
-                               "type" : "integer" },
-                             { "name" : "stage",
-                               "type" : "integer" } ]
+        "functions" : { "set_log":       { "req_host": "",
+                                           "req_user": "" },
+                        "delete_log":    { "req_host": "",
+                                           "req_user": "" },
+                        "update_status": { "req_host": "",
+                                           "req_user": "" }
+                      },
+        "log_constraints": [ { "name": "job",
+                               "type": "integer" },
+                             { "name": "stage",
+                               "type": "integer" } ]
     },
-    "queue": {
-        "req_host": "",
-        "req_user": "",
-        "queues": [],
-        "log_constraints": [ { "name" : "queue",
-                               "type" : "string",
-                               "choices" : [] } ]
+    "torque": {
+        "functions" : { "start_batch":   { "req_host": "",
+                                           "req_user": "" },
+                        "stop_batch":    { "req_host": "",
+                                           "req_user": "" },
+                        "start_fast":    { "req_host": "",
+                                           "req_user": "" },
+                        "stop_fast":     { "req_host": "",
+                                           "req_user": "" },
+                        "set_log":       { "req_host": "",
+                                           "req_user": "" },
+                        "delete_log":    { "req_host": "",
+                                           "req_user": "" },
+                        "update_status": { "req_host": "",
+                                           "req_user": "" }
+                      },
+        "log_constraints": [ { "name": "queue",
+                               "type": "string",
+                               "choices": [] } ],
+        "vars": { "": "",
+                  "":  "" }
     },
     "upload": {
-        "req_host": "",
-        "req_user": "",
+        "functions" : { "lock_page":     { "req_host": "",
+                                           "req_user": "" },
+                        "unlock_page":   { "req_host": "",
+                                           "req_user": "" },
+                        "set_log":       { "req_host": "",
+                                           "req_user": "" },
+                        "update_status": { "req_host": "",
+                                           "req_user": "" }
+                      },
         "lock_dir": ""
     },
     "web": {
-        "req_host": "",
-        "req_user": "",
-        "sites": [ { "name": "",
-                     "url":  "" },
-                   { "name": "",
-                     "url":  "" },
-                   { "name": "",
-                     "url":  "" } ]
+        "functions" : { "start_prod":    { "req_host": "",
+                                           "req_user": "",
+                                           "nginx_dir": "",
+                                           "name": "" },
+                        "stop_prod":     { "req_host": "",
+                                           "req_user": "",
+                                           "nginx_dir": "",
+                                           "name": "" },
+                        "start_dev":     { "req_host": "",
+                                           "req_user": "",
+                                           "nginx_dir": "",
+                                           "name": "" },
+                        "stop_dev":      { "req_host": "",
+                                           "req_user": "",
+                                           "nginx_dir": "",
+                                           "name": "" },
+                        "start_api":     { "req_host": "",
+                                           "req_user": "",
+                                           "nginx_dir": "",
+                                           "name": "" },
+                        "stop_api":      { "req_host": "",
+                                           "req_user": "", 
+                                           "nginx_dir": "",
+                                           "name": "" },
+                        "update_status": { "req_host": "",
+                                           "req_user": "" }
+                      },
+        "vars":  { "" : "http://",
+                   "" : "http://",
+                   "" : "http://" }
     }
 }
