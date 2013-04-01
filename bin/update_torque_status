@@ -1,0 +1,46 @@
+#!/soft/packages/python/2.6/bin/python
+
+import argparse
+import json
+import os
+import shutil
+import sys
+import shlex
+import subprocess
+import time
+
+def run_cmd(cmd_str):
+    cmd = shlex.split(str(cmd_str))
+    proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    sout, serr = proc.communicate()
+    if proc.returncode != 0 and serr != "":
+        print serr
+        exit(1)
+    return sout, serr
+
+def main():
+    parser = argparse.ArgumentParser(description='program for updating the torque subsystem status in the control api')
+    args = parser.parse_args()
+
+    conf_file = open(os.path.dirname(__file__) + "/../conf/conf.json")
+    json_conf = json.load(conf_file)
+    api_dir = json_conf['global']['api_dir'] + "/" + str(json_conf['global']['api_version'])
+    api_fname = json_conf['global']['api_dir'] + "/" + str(json_conf['global']['api_version']) + "/torque"
+
+    api_file = open(api_fname)
+    api_json = json.load(api_file)
+    api_json['updated'] = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
+    api_json['status'] = {}
+
+    for queue in json_conf['torque']['vars']:
+        sout, serr = run_cmd("/usr/local/bin/qstat -Q " + queue)
+        lines = sout.splitlines()
+        api_json['vars'][queue] = 'online' if lines[len(lines)-1].split()[3] == 'yes' else 'offline'
+
+    output_json = json.dumps(api_json, sort_keys=True)
+    f = open(api_fname + ".tmp", 'w')
+    f.write(output_json)
+    shutil.move(api_fname + ".tmp", api_fname)
+
+if __name__ == "__main__":
+    sys.exit( main() )

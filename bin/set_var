@@ -1,0 +1,38 @@
+#!/soft/packages/python/2.6/bin/python
+
+import argparse
+import json
+import os
+import shutil
+import sys
+import time
+
+def main():
+    parser = argparse.ArgumentParser(description='program for setting a variable in the control api')
+    parser.add_argument('subsystem', metavar='subsystem',
+                   help="This is the subsystem for which you are setting a variable")
+    parser.add_argument('variable', metavar='variable',
+                   help="This is the variable which you would like to set")
+    parser.add_argument('value', metavar='value',
+                   help="This is the value you wish to assign to the variable")
+    args = parser.parse_args()
+    subsystem = args.subsystem
+    variable = args.variable
+    value = args.value
+
+    conf_file = open(os.path.dirname(__file__) + "/../conf/conf.json")
+    json_conf = json.load(conf_file)
+    api_fname = json_conf['global']['api_dir'] + "/" + str(json_conf['global']['api_version']) + "/" + subsystem
+    api_file = open(api_fname)
+    json_state = json.load(api_file)
+
+    json_state["vars"][variable] = value
+    json_state['updated'] = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
+    output_json = json.dumps(json_state, sort_keys=True)
+
+    f = open(api_fname + ".tmp", 'w')
+    f.write(output_json)
+    shutil.move(api_fname + ".tmp", api_fname)
+
+if __name__ == "__main__":
+    sys.exit( main() )

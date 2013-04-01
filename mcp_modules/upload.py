@@ -1,60 +1,34 @@
-import os, json, sys
 from subsystem import subsystem
 
 class upload(subsystem):
-    actions = [ 'lock_page', 'unlock_page', 'set_log' ]
-
     def __init__(self, MCP_path):
         subsystem.__init__(self, MCP_path)
-        self.lock_file = self.json_conf['upload']['lock_dir'] + "/upload.lock"
-        self.state['status'] = {}
-        self.state['status']['page'] = ''
 
-    def update_status(self):
-        if os.path.isfile(self.lock_file):
-            self.state['status']['page'] = "offline"
-        else:
-            self.state['status']['page'] = "online"
+    def update_status(self, params):
+        function = 'update_status'
+        desc = "description: this function updates the status of the upload subsystem in the control api"
+        self.parse_function_params(function, [], {}, desc, params)
+
+        self.run_action("log_msg", "ANY", [ "INFO", "'REQUEST : attempting to update the upload subsystem api status'" ])
+        self.run_action("update_upload_status", self.get_req_login(function), [])
+        self.run_action("log_msg", "ANY", [ "INFO", "'SUCCESS : upload subsystem api status updated'" ])
 
     def lock_page(self, params):
-        action = 'lock_page'
-        desc = "description: this action creates the lock file for the MG-RAST production upload page and thus disables that page."
-        self.parse_action_params(action, [], {}, desc, params)
+        function = 'lock_page'
+        desc = "description: this function creates the lock file for the MG-RAST production upload page and thus disables that page."
+        self.parse_function_params(function, [], {}, desc, params)
 
-        if self.check_userhost() == -1:
-            self.pass_mcp_cmd(action, params)
-            return 0
-
-        self.log_msg("ACTION : attempting to disable upload page")
-
-        fh = file(self.lock_file, 'a')
-        try:
-            os.utime(self.lock_file, None)
-        finally:
-            fh.close()
-
-        self.state['status']['page'] = "offline"
-        jstate = json.dumps(self.state, sort_keys=True)
-        f = open(self.apidir + "/" + self.__class__.__name__, 'w')
-        f.write(jstate)
-        self.log_msg("SUCCESS : upload page disabled")
+        self.run_action("log_msg", "ANY", [ "INFO", "'REQUEST : attempting to lock the upload page'" ])
+        self.run_action("lock_upload_page", self.get_req_login(function), [])
+        self.run_action("update_upload_status", self.get_req_login(function), [])
+        self.run_action("log_msg", "ANY", [ "INFO", "'SUCCESS : upload page locked and upload subsystem api status updated'" ])
 
     def unlock_page(self, params):
-        action = 'unlock_page'
-        desc = "description: this action deletes the lock file for the MG-RAST production upload page and thus enables that page."
-        self.parse_action_params(action, [], {}, desc, params)
+        function = 'unlock_page'
+        desc = "description: this function deletes the lock file for the MG-RAST production upload page and thus enables that page."
+        self.parse_function_params(function, [], {}, desc, params)
 
-        if self.check_userhost() == -1:
-            self.pass_mcp_cmd(action, params)
-            return 0
-
-        self.log_msg("ACTION : attempting to enable upload page")
-
-        if os.path.isfile(self.lock_file):
-            os.unlink(self.lock_file)
-
-        self.state['status']['page'] = "online"
-        jstate = json.dumps(self.state, sort_keys=True)
-        f = open(self.apidir + "/" + self.__class__.__name__, 'w')
-        f.write(jstate)
-        self.log_msg("SUCCESS : upload page enabled")
+        self.run_action("log_msg", "ANY", [ "INFO", "'REQUEST : attempting to unlock the upload page'" ])
+        self.run_action("unlock_upload_page", self.get_req_login(function), [])
+        self.run_action("update_upload_status", self.get_req_login(function), [])
+        self.run_action("log_msg", "ANY", [ "INFO", "'SUCCESS : upload page unlocked and upload subsystem api status updated'" ])
