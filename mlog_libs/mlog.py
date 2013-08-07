@@ -74,14 +74,12 @@ import re
 import inspect
 import os
 import getpass
-import sys
+import warnings
 
 MLOG_CONF_FILE = "/etc/mlog/mlog.conf"
 DEFAULT_LOG_LEVEL = 6
-#LOG_LEVEL_MIN = 0
-#LOG_LEVEL_MAX = 7
-MSG_CHECK_COUNT = 100
-MSG_CHECK_INTERVAL = 300  # 300s = 5min
+#MSG_CHECK_COUNT = 100
+#MSG_CHECK_INTERVAL = 300  # 300s = 5min
 MSG_FACILITY = syslog.LOG_LOCAL1
 EMERG_FACILITY = syslog.LOG_LOCAL0
 MLOG_TEXT_TO_LEVEL = {'EMERG': 0,
@@ -105,8 +103,6 @@ LOG_LEVEL_MAX = max(ALLOWED_LOG_LEVELS)
 MLOG_LEVEL_TO_TEXT = {}
 for k, v in MLOG_TEXT_TO_LEVEL.iteritems():
     MLOG_LEVEL_TO_TEXT[v] = k
-#MLOG_LEVELS = ['EMERGENCY', 'ALERT', 'ERROR', 'WARNING', 'DEBUG', 'DEBUG2',
-#               'DEBUG3']
 
 
 class mlog(object):
@@ -121,6 +117,8 @@ class mlog(object):
         self.subsystem = subsystem
         self.user_log_level = -1
         self.msg_count = 0
+        self.recheck_api_msg = 100
+        self.recheck_api_time = 300  # 5 mins
         self.log_constraints = {} if not constraints else constraints
 
         self.update_api_log_level()
@@ -153,15 +151,23 @@ class mlog(object):
             subsystem_api_url = api_url + "/" + self.subsystem
             try:
                 data = json.load(urllib2.urlopen(subsystem_api_url, timeout=5))
-            except urllib2.HTTPError, e:
-                sys.stderr.write(e.code + "\n")
             except urllib2.URLError, e:
-                sys.stderr.write("WARNING: Could not access control API at '"
-                                 + subsystem_api_url + "'\n")
-                sys.stderr.write("           due to urllib2 error '"
-                                 + str(e.args) + "'\n")
-                sys.stderr.write("         Will instead use default log level of '"
-                                 + str(DEFAULT_LOG_LEVEL) + "'\n")
+                code_ = None
+                if hasattr(e, 'code'):
+                    code_ = ' ' + str(e.code)
+                warnings.warn(
+                    'Could not connect to mlog api server at ' +
+                    '{}:{} {}. Using default log level {}.'.format(
+                    subsystem_api_url, code_, str(e.reason),
+                    str(DEFAULT_LOG_LEVEL)))
+#                sys.stderr.write(e.code + "\n")
+#            except urllib2.URLError, e:
+#                sys.stderr.write("WARNING: Could not access control API at '"
+#                                 + subsystem_api_url + "'\n")
+#                sys.stderr.write("           due to urllib2 error '"
+#                                 + str(e.args) + "'\n")
+#                sys.stderr.write("         Will instead use default log level of '"
+#                                 + str(DEFAULT_LOG_LEVEL) + "'\n")
             else:
                 max_matching_level = -1
                 for constraint_set in data['log_levels']:
@@ -191,24 +197,25 @@ class mlog(object):
         return level
 
     def set_log_level(self, level):
-#        if(level in MLOG_TEXT_TO_LEVEL):
-#            level = MLOG_TEXT_TO_LEVEL[level]
-#        elif(level not in ALLOWED_LOG_LEVELS):
-#            raise ValueError('Illegal log level')
         self.user_log_level = self._get_log_level(level)
 
     def set_log_msg_check_count(self, count):
-        if(not isinstance(count, int)):
-            sys.stderr.write("ERROR: Format for calling set_log_msg_check_count is set_log_msg_check_count(integer count)\n")
-            return 1
-        MSG_CHECK_COUNT = count
+        count = int(count)
+        if count < 0:
+            raise ValueError('Cannot check a negative number of messages')
+#        if(not isinstance(count, int)):
+#            sys.stderr.write("ERROR: Format for calling set_log_msg_check_count is set_log_msg_check_count(integer count)\n")
+#            return 1
+        self.recheck_api_msg = count
 
     def set_log_msg_check_interval(self, interval):
-        if(not isinstance(interval, int)):
-            sys.stderr.write("ERROR: Format for calling set_log_msg_check_interval is set_log_msg_check_interval(integer seconds)\n")
-            return 1
-
-        MSG_CHECK_INTERVAL = interval
+        interval = int(interval)
+        if interval < 0:
+            raise ValueError('interval must be positive')
+#        if(not isinstance(interval, int)):
+#            sys.stderr.write("ERROR: Format for calling set_log_msg_check_interval is set_log_msg_check_interval(integer seconds)\n")
+#            return 1
+        self.recheck_api_time = interval
 
     def use_api_log_level(self):
         self.user_log_level = -1
@@ -221,21 +228,8 @@ class mlog(object):
         syslog.closelog()
 
     def logit(self, level, message):
-#        if len(args) != 2 or (not isinstance(args[0], int) and args[0] not in
-#                              MLOG_TEXT_TO_LEVEL) or (isinstance(args[0], int)
-#                              and (args[0] < LOG_LEVEL_MIN
-#                              or args[0] > LOG_LEVEL_MAX)):
-#            sys.stderr.write("ERROR: Format for calling logit is logit(integer level, string message) where level can range from " + LOG_LEVEL_MIN + " to " + LOG_LEVEL_MAX + " or be one of '" + "', '".join(MLOG_TEXT_TO_LEVEL.keys()) + "'\n")
-#            return 1
-#
-#        level = args[0]
-#        message = args[1]
-
         message = str(message)
         level = self._get_log_level(level)
-
-#        if (not isinstance(level, int)):
-#            level = MLOG_TEXT_TO_LEVEL[level]
 
         self.msg_count += 1
         self.msgs_since_api_update += 1
@@ -243,27 +237,17 @@ class mlog(object):
         user = getpass.getuser()
         file_ = os.path.abspath(inspect.getfile(inspect.stack()[1][0]))
 
-        if(self.msgs_since_api_update >= MSG_CHECK_COUNT
-           or self._get_time_since_start() >= MSG_CHECK_INTERVAL):
+        if(self.msgs_since_api_update >= self.recheck_api_msg
+           or self._get_time_since_start() >= self.recheck_api_time):
             self.update_api_log_level()
 
         # If this message is an emergency, send a copy to the emergency
         # facility first.
         if(level == 0):
             self._syslog(EMERG_FACILITY, level, user, file_, message)
-#            syslog.openlog("[" + self.subsystem + "] [" + MLOG_LEVELS[level] +
-#                           "] [" + user + "] [" + ident + "] ",
-#                           syslog.LOG_PID, EMERG_FACILITY)
-#            syslog.syslog(syslog.LOG_EMERG, message)
-#            syslog.closelog()
 
         if(level <= self.get_log_level()):
             self._syslog(MSG_FACILITY, level, user, file_, message)
-#            syslog.openlog("[" + self.subsystem + "] [" + MLOG_LEVELS[level] +
-#                           "] [" + user + "] [" + ident + "] ",
-#                           syslog.LOG_PID, MSG_FACILITY)
-#            syslog.syslog(SYSLOG_LEVELS[level], message)
-#            syslog.closelog()
 
 if __name__ == '__main__':
     pass
