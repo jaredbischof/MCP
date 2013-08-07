@@ -12,7 +12,7 @@ METHODS
 
        logit(int level, string message): sends log message to syslog.
 
-       *         level: (0-6) The logging level for this message is compared to
+       *         level: (0-9) The logging level for this message is compared to
                     the logging level that has been set in mlog.  If it is <=
                     the set logging level, the message will be sent to syslog,
                     otherwise it will be ignored.  Logging level is set to 6
@@ -30,19 +30,26 @@ METHODS
 
        *          level : priority
 
-       *          0 : EMERGENCY - vital component is down
+       *          0 : EMERG - system is unusable
 
-       *          1 : ALERT - non-vital component is down
+       *          1 : ALERT - component must be fixed immediately
 
-       *          2 : ERROR - error that prevents proper operation
+       *          2 : CRIT - secondary component must be fixed immediately
 
-       *          3 : WARNING - error, but does not prevent operation
+       *          3 : ERR - non-urgent failure
 
-       *          4 : DEBUG - lowest level of debug
+       *          4 : WARNING - warning that an error will occur if no action
+                                is taken
 
-       *          5 : DEBUG2 - second level of debug
+       *          5 : NOTICE - unusual but safe conditions
 
-       *          6 : DEBUG3 - highest level of debug
+       *          6 : INFO - normal operational messages
+
+       *          7 : DEBUG - lowest level of debug
+
+       *          8 : DEBUG2 - second level of debug
+
+       *          9 : DEBUG3 - highest level of debug
 
        set_log_msg_check_count(integer count): used to set the number the
            messages that mlog will log before querying the control API for the
@@ -176,12 +183,19 @@ class mlog(object):
 
                 self.api_log_level = max_matching_level
 
-    def set_log_level(self, level):
+    def _get_log_level(self, level):
         if(level in MLOG_TEXT_TO_LEVEL):
             level = MLOG_TEXT_TO_LEVEL[level]
         elif(level not in ALLOWED_LOG_LEVELS):
             raise ValueError('Illegal log level')
-        self.user_log_level = level
+        return level
+
+    def set_log_level(self, level):
+#        if(level in MLOG_TEXT_TO_LEVEL):
+#            level = MLOG_TEXT_TO_LEVEL[level]
+#        elif(level not in ALLOWED_LOG_LEVELS):
+#            raise ValueError('Illegal log level')
+        self.user_log_level = self._get_log_level(level)
 
     def set_log_msg_check_count(self, count):
         if(not isinstance(count, int)):
@@ -206,26 +220,28 @@ class mlog(object):
         syslog.syslog(MLOG_TO_SYSLOG[level], message)
         syslog.closelog()
 
+    def logit(self, level, message):
+#        if len(args) != 2 or (not isinstance(args[0], int) and args[0] not in
+#                              MLOG_TEXT_TO_LEVEL) or (isinstance(args[0], int)
+#                              and (args[0] < LOG_LEVEL_MIN
+#                              or args[0] > LOG_LEVEL_MAX)):
+#            sys.stderr.write("ERROR: Format for calling logit is logit(integer level, string message) where level can range from " + LOG_LEVEL_MIN + " to " + LOG_LEVEL_MAX + " or be one of '" + "', '".join(MLOG_TEXT_TO_LEVEL.keys()) + "'\n")
+#            return 1
+#
+#        level = args[0]
+#        message = args[1]
 
-    def logit(self, *args):
-        if len(args) != 2 or (not isinstance(args[0], int) and args[0] not in
-                              MLOG_TEXT_TO_LEVEL) or (isinstance(args[0], int)
-                              and (args[0] < LOG_LEVEL_MIN
-                              or args[0] > LOG_LEVEL_MAX)):
-            sys.stderr.write("ERROR: Format for calling logit is logit(integer level, string message) where level can range from " + LOG_LEVEL_MIN + " to " + LOG_LEVEL_MAX + " or be one of '" + "', '".join(MLOG_TEXT_TO_LEVEL.keys()) + "'\n")
-            return 1
+        message = str(message)
+        level = self._get_log_level(level)
 
-        level = args[0]
-        message = args[1]
-
-        if (not isinstance(level, int)):
-            level = MLOG_TEXT_TO_LEVEL[level]
+#        if (not isinstance(level, int)):
+#            level = MLOG_TEXT_TO_LEVEL[level]
 
         self.msg_count += 1
         self.msgs_since_api_update += 1
 
         user = getpass.getuser()
-        ident = os.path.abspath(inspect.getfile(inspect.stack()[1][0]))
+        file_ = os.path.abspath(inspect.getfile(inspect.stack()[1][0]))
 
         if(self.msgs_since_api_update >= MSG_CHECK_COUNT
            or self._get_time_since_start() >= MSG_CHECK_INTERVAL):
@@ -234,7 +250,7 @@ class mlog(object):
         # If this message is an emergency, send a copy to the emergency
         # facility first.
         if(level == 0):
-            self._syslog(EMERG_FACILITY, level, user, ident, message)
+            self._syslog(EMERG_FACILITY, level, user, file_, message)
 #            syslog.openlog("[" + self.subsystem + "] [" + MLOG_LEVELS[level] +
 #                           "] [" + user + "] [" + ident + "] ",
 #                           syslog.LOG_PID, EMERG_FACILITY)
@@ -242,7 +258,7 @@ class mlog(object):
 #            syslog.closelog()
 
         if(level <= self.get_log_level()):
-            self._syslog(MSG_FACILITY, level, user, ident, message)
+            self._syslog(MSG_FACILITY, level, user, file_, message)
 #            syslog.openlog("[" + self.subsystem + "] [" + MLOG_LEVELS[level] +
 #                           "] [" + user + "] [" + ident + "] ",
 #                           syslog.LOG_PID, MSG_FACILITY)
