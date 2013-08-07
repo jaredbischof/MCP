@@ -3,20 +3,20 @@ NAME
        mlog
 
 DESCRIPTION
-       A library for sending MG-RAST logging to syslog.
+       A library for sending logging messages to syslog.
 
 METHODS
        mlog(string subsystem, hashref constraints): Initializes mlog. You
            should call this at the beginning of your program. Constraints are
            optional.
 
-       logit(int level, string message): sends mgrast log message to syslog.
+       logit(int level, string message): sends log message to syslog.
 
        *         level: (0-6) The logging level for this message is compared to
                     the logging level that has been set in mlog.  If it is <=
                     the set logging level, the message will be sent to syslog,
                     otherwise it will be ignored.  Logging level is set to 6
-                    if MG-RAST control API cannot be reached and the user does
+                    if control API cannot be reached and the user does
                     not set the log level. Log level can also be entered as
                     string (e.g. 'DEBUG')
 
@@ -71,30 +71,40 @@ import sys
 
 MLOG_CONF_FILE = "/etc/mlog/mlog.conf"
 DEFAULT_LOG_LEVEL = 6
-LOG_LEVEL_MIN = 0
-LOG_LEVEL_MAX = 6
+#LOG_LEVEL_MIN = 0
+#LOG_LEVEL_MAX = 7
 MSG_CHECK_COUNT = 100
 MSG_CHECK_INTERVAL = 300  # 300s = 5min
 MSG_FACILITY = syslog.LOG_LOCAL1
 EMERG_FACILITY = syslog.LOG_LOCAL0
-SYSLOG_LEVELS = [syslog.LOG_EMERG, syslog.LOG_ALERT, syslog.LOG_CRIT,
-                 syslog.LOG_ERR, syslog.LOG_WARNING, syslog.LOG_NOTICE,
-                 syslog.LOG_INFO, syslog.LOG_DEBUG]
-MLOG_TEXT_TO_LEVEL = {'EMERGENCY': 0,
+MLOG_TEXT_TO_LEVEL = {'EMERG': 0,
                       'ALERT': 1,
-                      'ERROR': 2,
-                      'WARNING': 3,
-                      'DEBUG': 4,
-                      'DEBUG2': 5,
-                      'DEBUG3': 6
+                      'CRIT': 2,
+                      'ERR': 3,
+                      'WARNING': 4,
+                      'NOTICE': 5,
+                      'INFO': 6,
+                      'DEBUG': 7,
+                      'DEBUG2': 8,
+                      'DEBUG3': 9,
                       }
-MLOG_LEVELS = ['EMERGENCY', 'ALERT', 'ERROR', 'WARNING', 'DEBUG', 'DEBUG2',
-               'DEBUG3']
+MLOG_TO_SYSLOG = [syslog.LOG_EMERG, syslog.LOG_ALERT, syslog.LOG_CRIT,
+                 syslog.LOG_ERR, syslog.LOG_WARNING, syslog.LOG_NOTICE,
+                 syslog.LOG_INFO, syslog.LOG_DEBUG, syslog.LOG_DEBUG,
+                 syslog.LOG_DEBUG]
+ALLOWED_LOG_LEVELS = set(MLOG_TEXT_TO_LEVEL.value())
+LOG_LEVEL_MIN = min(ALLOWED_LOG_LEVELS)
+LOG_LEVEL_MAX = max(ALLOWED_LOG_LEVELS)
+MLOG_LEVEL_TO_TEXT = {}
+for k, v in MLOG_TEXT_TO_LEVEL.iteritems():
+    MLOG_LEVEL_TO_TEXT[v] = k
+#MLOG_LEVELS = ['EMERGENCY', 'ALERT', 'ERROR', 'WARNING', 'DEBUG', 'DEBUG2',
+#               'DEBUG3']
 
 
 class mlog(object):
     """
-    This class contains the methods necessary for sending MG-RAST log messages.
+    This class contains the methods necessary for sending log messages.
     """
 
     def __init__(self, subsystem, constraints=None):
@@ -169,11 +179,8 @@ class mlog(object):
     def set_log_level(self, level):
         if(level in MLOG_TEXT_TO_LEVEL):
             level = MLOG_TEXT_TO_LEVEL[level]
-        elif(not isinstance(level, int) or level < LOG_LEVEL_MIN or level >
-             LOG_LEVEL_MAX):
-            sys.stderr.write("ERROR: Format for calling set_log_level is set_log_level(integer level) where level can range from " + LOG_LEVEL_MIN + " to " + LOG_LEVEL_MAX + " or be one of '" + "', '".join(MLOG_TEXT_TO_LEVEL.keys()) + "'\n")
-            return 1
-
+        elif(level not in ALLOWED_LOG_LEVELS):
+            raise ValueError('Illegal log level')
         self.user_log_level = level
 
     def set_log_msg_check_count(self, count):
@@ -191,6 +198,14 @@ class mlog(object):
 
     def use_api_log_level(self):
         self.user_log_level = -1
+
+    def _syslog(self, facility, level, user, file_, message):
+        syslog.openlog("[" + self.subsystem + "] [" + MLOG_LEVEL_TO_TEXT[level]
+                       + "] [" + user + "] [" + file_ + "] ",
+                       syslog.LOG_PID, facility)
+        syslog.syslog(MLOG_TO_SYSLOG[level], message)
+        syslog.closelog()
+
 
     def logit(self, *args):
         if len(args) != 2 or (not isinstance(args[0], int) and args[0] not in
@@ -219,17 +234,20 @@ class mlog(object):
         # If this message is an emergency, send a copy to the emergency
         # facility first.
         if(level == 0):
-            syslog.openlog("[" + self.subsystem + "] [" + MLOG_LEVELS[level] +
-                           "] [" + user + "] [" + ident + "] ",
-                           syslog.LOG_PID, EMERG_FACILITY)
-            syslog.syslog(syslog.LOG_EMERG, message)
-            syslog.closelog()
+            self._syslog(EMERG_FACILITY, level, user, ident, message)
+#            syslog.openlog("[" + self.subsystem + "] [" + MLOG_LEVELS[level] +
+#                           "] [" + user + "] [" + ident + "] ",
+#                           syslog.LOG_PID, EMERG_FACILITY)
+#            syslog.syslog(syslog.LOG_EMERG, message)
+#            syslog.closelog()
 
         if(level <= self.get_log_level()):
-            syslog.openlog("[" + self.subsystem + "] [" + MLOG_LEVELS[level] +
-                           "] [" + user + "] [" + ident + "] ",
-                           syslog.LOG_PID, MSG_FACILITY)
-            syslog.syslog(SYSLOG_LEVELS[level], message)
-            syslog.closelog()
+            self._syslog(MSG_FACILITY, level, user, ident, message)
+#            syslog.openlog("[" + self.subsystem + "] [" + MLOG_LEVELS[level] +
+#                           "] [" + user + "] [" + ident + "] ",
+#                           syslog.LOG_PID, MSG_FACILITY)
+#            syslog.syslog(SYSLOG_LEVELS[level], message)
+#            syslog.closelog()
 
-        return 0
+if __name__ == '__main__':
+    pass
