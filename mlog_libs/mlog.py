@@ -66,29 +66,30 @@ METHODS
            to use the control API-defined log level.
 """
 
-import json
-import urllib2
-import syslog
-import datetime
-import inspect
-import os
-import getpass
-import warnings
-from ConfigParser import ConfigParser
+import json as _json
+import urllib2 as _urllib2
+import syslog as _syslog
+import datetime as _datetime
+import platform as _platform
+import inspect as _inspect
+import os as _os
+import getpass as _getpass
+import warnings as _warnings
+from ConfigParser import ConfigParser as _ConfigParser
 
 MLOG_CONF_FILE_DEFAULT = "/etc/mlog/mlog.conf"
 MLOG_ENV_FILE = 'MLOG_CONFIG_FILE'
-GLOBAL = 'global'
-MLOG_LOG_LEVEL = 'mlog_log_level'
-MLOG_API_URL = 'mlog_api_url'
-MLOG_LOG_FILE = 'mlog_log_file'
+_GLOBAL = 'global'
+_MLOG_LOG_LEVEL = 'mlog_log_level'
+_MLOG_API_URL = 'mlog_api_url'
+_MLOG_LOG_FILE = 'mlog_log_file'
 
 DEFAULT_LOG_LEVEL = 6
 #MSG_CHECK_COUNT = 100
 #MSG_CHECK_INTERVAL = 300  # 300s = 5min
-MSG_FACILITY = syslog.LOG_LOCAL1
-EMERG_FACILITY = syslog.LOG_LOCAL0
-MLOG_TEXT_TO_LEVEL = {'EMERG': 0,
+MSG_FACILITY = _syslog.LOG_LOCAL1
+EMERG_FACILITY = _syslog.LOG_LOCAL0
+_MLOG_TEXT_TO_LEVEL = {'EMERG': 0,
                       'ALERT': 1,
                       'CRIT': 2,
                       'ERR': 3,
@@ -99,16 +100,16 @@ MLOG_TEXT_TO_LEVEL = {'EMERG': 0,
                       'DEBUG2': 8,
                       'DEBUG3': 9,
                       }
-MLOG_TO_SYSLOG = [syslog.LOG_EMERG, syslog.LOG_ALERT, syslog.LOG_CRIT,
-                 syslog.LOG_ERR, syslog.LOG_WARNING, syslog.LOG_NOTICE,
-                 syslog.LOG_INFO, syslog.LOG_DEBUG, syslog.LOG_DEBUG,
-                 syslog.LOG_DEBUG]
-#ALLOWED_LOG_LEVELS = set(MLOG_TEXT_TO_LEVEL.values())
-MLOG_LEVEL_TO_TEXT = {}
-for k, v in MLOG_TEXT_TO_LEVEL.iteritems():
-    MLOG_LEVEL_TO_TEXT[v] = k
-LOG_LEVEL_MIN = min(MLOG_LEVEL_TO_TEXT.keys())
-LOG_LEVEL_MAX = max(MLOG_LEVEL_TO_TEXT.keys())
+_MLOG_TO_SYSLOG = [_syslog.LOG_EMERG, _syslog.LOG_ALERT, _syslog.LOG_CRIT,
+                 _syslog.LOG_ERR, _syslog.LOG_WARNING, _syslog.LOG_NOTICE,
+                 _syslog.LOG_INFO, _syslog.LOG_DEBUG, _syslog.LOG_DEBUG,
+                 _syslog.LOG_DEBUG]
+#ALLOWED_LOG_LEVELS = set(_MLOG_TEXT_TO_LEVEL.values())
+_MLOG_LEVEL_TO_TEXT = {}
+for k, v in _MLOG_TEXT_TO_LEVEL.iteritems():
+    _MLOG_LEVEL_TO_TEXT[v] = k
+LOG_LEVEL_MIN = min(_MLOG_LEVEL_TO_TEXT.keys())
+LOG_LEVEL_MAX = max(_MLOG_LEVEL_TO_TEXT.keys())
 
 
 class mlog(object):
@@ -116,34 +117,42 @@ class mlog(object):
     This class contains the methods necessary for sending log messages.
     """
 
-    def __init__(self, subsystem, constraints=None, config=None):
+    def __init__(self, subsystem, constraints=None, config=None, logfile=None):
         if not subsystem:
             raise ValueError("Subsystem must be supplied")
 
-        self.subsystem = subsystem
-        self.user_log_level = -1
-        self.config_log_level = -1
-        self.config_log_file = config
+        self._subsystem = str(subsystem)
+        self._mlog_config_file = config
         if not config:
-            self.config_log_file = os.environ.get(MLOG_ENV_FILE, None)
+            self._mlog_config_file = _os.environ.get(MLOG_ENV_FILE, None)
         if not config:
-            self.config_log_file = MLOG_CONF_FILE_DEFAULT
+            self._mlog_config_file = MLOG_CONF_FILE_DEFAULT
+        self._mlog_config_file = str(self._mlog_config_file)
+        self._user_log_level = -1
+        self._config_log_level = -1
+        self._user_log_file = logfile
+        self._config_log_file = None
+        self._api_log_level = -1
+        self._msgs_since_config_update = 0
+        self._time_at_config_update = _datetime.datetime.now()
         self.msg_count = 0
-        self.recheck_api_msg = 100
-        self.recheck_api_time = 300  # 5 mins
-        self.log_constraints = {} if not constraints else constraints
+        self._recheck_api_msg = 100
+        self._recheck_api_time = 300  # 5 mins
+        self._log_constraints = {} if not constraints else constraints
 
         self.update_config()
 
     def _get_time_since_start(self):
-        time_diff = datetime.datetime.now() - self.time_since_api_update
+        time_diff = _datetime.datetime.now() - self._time_at_config_update
         return (time_diff.days * 24 * 60 * 60) + time_diff.seconds
 
     def get_log_level(self):
-        if(self.user_log_level != -1):
-            return self.user_log_level
-        elif(self.api_log_level != -1):
-            return self.api_log_level
+        if(self._user_log_level != -1):
+            return self._user_log_level
+        elif(self._config_log_level != -1):
+            return self._config_log_level
+        elif(self._api_log_level != -1):
+            return self._api_log_level
         else:
             return DEFAULT_LOG_LEVEL
 
@@ -155,38 +164,34 @@ class mlog(object):
         return cfgitems
 
     def update_config(self):
-        self.api_log_level = -1
-        self.msgs_since_api_update = 0
-        self.time_since_api_update = datetime.datetime.now()
+        self._api_log_level = -1
+        self._msgs_since_config_update = 0
+        self._time_at_config_update = _datetime.datetime.now()
 
-        api_url = None
-        print self.config_log_file
-        if os.path.isfile(self.config_log_file):
-            cfg = ConfigParser()
-            cfg.read(self.config_log_file)
-            cfgitems = self._get_config_items(cfg, GLOBAL)
-            cfgitems.update(self._get_config_items(cfg, self.subsystem))
-            if MLOG_LOG_LEVEL in cfgitems:
-                self.config_log_level = cfgitems[MLOG_LOG_LEVEL]
-            if MLOG_API_URL in cfgitems:
-                api_url = cfgitems[MLOG_API_URL]
-            if MLOG_LOG_FILE in cfgitems:
-                self.config_log_file = cfgitems[MLOG_LOG_FILE]
         # Retrieving the control API defined log level
-#        for line in open(MLOG_CONF_FILE):
-#            line.strip()
-#            if(re.match(r'^url\s+', line)):
-#                api_url = line.split()[1]
+        api_url = None
+        if _os.path.isfile(self._mlog_config_file):
+            cfg = _ConfigParser()
+            cfg.read(self._mlog_config_file)
+            cfgitems = self._get_config_items(cfg, _GLOBAL)
+            cfgitems.update(self._get_config_items(cfg, self._subsystem))
+            if _MLOG_LOG_LEVEL in cfgitems:
+                self._config_log_level = cfgitems[_MLOG_LOG_LEVEL]
+            if _MLOG_API_URL in cfgitems:
+                api_url = cfgitems[_MLOG_API_URL]
+            if _MLOG_LOG_FILE in cfgitems:
+                self._config_log_file = cfgitems[_MLOG_LOG_FILE]
 
         if(api_url):
-            subsystem_api_url = api_url + "/" + self.subsystem
+            subsystem_api_url = api_url + "/" + self._subsystem
             try:
-                data = json.load(urllib2.urlopen(subsystem_api_url, timeout=5))
-            except urllib2.URLError, e:
+                data = _json.load(_urllib2.urlopen(subsystem_api_url,
+                                                   timeout=5))
+            except _urllib2.URLError, e:
                 code_ = None
                 if hasattr(e, 'code'):
                     code_ = ' ' + str(e.code)
-                warnings.warn(
+                _warnings.warn(
                     'Could not connect to mlog api server at ' +
                     '{}:{} {}. Using default log level {}.'.format(
                     subsystem_api_url, code_, str(e.reason),
@@ -201,62 +206,87 @@ class mlog(object):
 
                     matches = 1
                     for constraint in constraints:
-                        if constraint not in self.log_constraints:
+                        if constraint not in self._log_constraints:
                             matches = 0
-                        elif (self.log_constraints[constraint] !=
+                        elif (self._log_constraints[constraint] !=
                               constraints[constraint]):
                             matches = 0
 
                     if matches == 1:
                         max_matching_level = level
 
-                self.api_log_level = max_matching_level
+                self._api_log_level = max_matching_level
 
-    def _get_log_level(self, level):
-        if(level in MLOG_TEXT_TO_LEVEL):
-            level = MLOG_TEXT_TO_LEVEL[level]
-        elif(level not in MLOG_LEVEL_TO_TEXT):
+    def _resolve_log_level(self, level):
+        if(level in _MLOG_TEXT_TO_LEVEL):
+            level = _MLOG_TEXT_TO_LEVEL[level]
+        elif(level not in _MLOG_LEVEL_TO_TEXT):
             raise ValueError('Illegal log level')
         return level
 
     def set_log_level(self, level):
-        self.user_log_level = self._get_log_level(level)
+        self._user_log_level = self._resolve_log_level(level)
+
+    def get_log_file(self):
+        if self._user_log_file:
+            return self._user_log_file
+        if self._config_log_file:
+            return self._config_log_file
+        return None
+
+    def set_log_file(self, filename):
+        self._user_log_file = filename
 
     def set_log_msg_check_count(self, count):
         count = int(count)
         if count < 0:
             raise ValueError('Cannot check a negative number of messages')
-        self.recheck_api_msg = count
+        self._recheck_api_msg = count
 
     def set_log_msg_check_interval(self, interval):
         interval = int(interval)
         if interval < 0:
             raise ValueError('interval must be positive')
-        self.recheck_api_time = interval
+        self._recheck_api_time = interval
 
-    def use_api_log_level(self):
-        self.user_log_level = -1
+    def clear_user_log_level(self):
+        self._user_log_level = -1
+
+    def _get_ident(self, level, user, file_):
+        return "[" + self._subsystem + "] [" + _MLOG_LEVEL_TO_TEXT[level] + \
+            "] [" + user + "] [" + file_ + "] [" + _os.getpid() + "]"
 
     def _syslog(self, facility, level, user, file_, message):
-        syslog.openlog("[" + self.subsystem + "] [" + MLOG_LEVEL_TO_TEXT[level]
-                       + "] [" + user + "] [" + file_ + "] ",
-                       syslog.LOG_PID, facility)
-        syslog.syslog(MLOG_TO_SYSLOG[level], message)
-        syslog.closelog()
+        _syslog.openlog(self._get_ident(level, user, file_), '',
+                       facility)
+        _syslog.syslog(_MLOG_TO_SYSLOG[level], message)
+        _syslog.closelog()
+
+    def _log(self, level, user, file_, message):
+        msg = ' '.join([str(_datetime.datetime.now()), _platform.node(),
+                        self._get_ident(level, user, file_) + ':', message]) \
+                        + '\n'
+        try:
+            with open(self.get_log_file(), 'a') as log:
+                log.write(msg)
+        except Exception as e:
+            _warnings.warn('Could not write to log file ' +
+                           str(self.get_log_file()) + ': ' + str(e) +
+                           '. Message was: ' + msg)
 
     def logit(self, level, message):
         message = str(message)
-        level = self._get_log_level(level)
+        level = self._resolve_log_level(level)
 
         self.msg_count += 1
-        self.msgs_since_api_update += 1
+        self._msgs_since_config_update += 1
 
-        user = getpass.getuser()
-        file_ = os.path.abspath(inspect.getfile(inspect.stack()[1][0]))
+        user = _getpass.getuser()
+        file_ = _os.path.abspath(_inspect.getfile(_inspect.stack()[1][0]))
 
-        if(self.msgs_since_api_update >= self.recheck_api_msg
-           or self._get_time_since_start() >= self.recheck_api_time):
-            self.update_api_log_level()
+        if(self._msgs_since_config_update >= self._recheck_api_msg
+           or self._get_time_since_start() >= self._recheck_api_time):
+            self.update_config()
 
         # If this message is an emergency, send a copy to the emergency
         # facility first.
@@ -265,6 +295,8 @@ class mlog(object):
 
         if(level <= self.get_log_level()):
             self._syslog(MSG_FACILITY, level, user, file_, message)
+            if self.get_log_file():
+                self._log(level, user, file_, message)
 
 if __name__ == '__main__':
     pass
