@@ -89,16 +89,27 @@ DEFAULT_LOG_LEVEL = 6
 #MSG_CHECK_INTERVAL = 300  # 300s = 5min
 MSG_FACILITY = _syslog.LOG_LOCAL1
 EMERG_FACILITY = _syslog.LOG_LOCAL0
-_MLOG_TEXT_TO_LEVEL = {'EMERG': 0,
-                      'ALERT': 1,
-                      'CRIT': 2,
-                      'ERR': 3,
-                      'WARNING': 4,
-                      'NOTICE': 5,
-                      'INFO': 6,
-                      'DEBUG': 7,
-                      'DEBUG2': 8,
-                      'DEBUG3': 9,
+
+EMERG = 0
+ALERT = 1
+CRIT = 2
+ERR = 3
+WARNING = 4
+NOTICE = 5
+INFO = 6
+DEBUG = 7
+DEBUG2 = 8
+DEBUG3 = 9
+_MLOG_TEXT_TO_LEVEL = {'EMERG': EMERG,
+                      'ALERT': ALERT,
+                      'CRIT': CRIT,
+                      'ERR': ERR,
+                      'WARNING': WARNING,
+                      'NOTICE': NOTICE,
+                      'INFO': INFO,
+                      'DEBUG': DEBUG,
+                      'DEBUG2': DEBUG2,
+                      'DEBUG3': DEBUG3,
                       }
 _MLOG_TO_SYSLOG = [_syslog.LOG_EMERG, _syslog.LOG_ALERT, _syslog.LOG_CRIT,
                  _syslog.LOG_ERR, _syslog.LOG_WARNING, _syslog.LOG_NOTICE,
@@ -110,6 +121,7 @@ for k, v in _MLOG_TEXT_TO_LEVEL.iteritems():
     _MLOG_LEVEL_TO_TEXT[v] = k
 LOG_LEVEL_MIN = min(_MLOG_LEVEL_TO_TEXT.keys())
 LOG_LEVEL_MAX = max(_MLOG_LEVEL_TO_TEXT.keys())
+del k, v
 
 
 class mlog(object):
@@ -176,7 +188,13 @@ class mlog(object):
             cfgitems = self._get_config_items(cfg, _GLOBAL)
             cfgitems.update(self._get_config_items(cfg, self._subsystem))
             if _MLOG_LOG_LEVEL in cfgitems:
-                self._config_log_level = cfgitems[_MLOG_LOG_LEVEL]
+                try:
+                    self._config_log_level = int(cfgitems[_MLOG_LOG_LEVEL])
+                except:
+                    _warnings.warn(
+                        'Cannot parse log level {} from file {} to int'.format(
+                            cfgitems[_MLOG_LOG_LEVEL], self._mlog_config_file)
+                        + '. Keeping current log level.')
             if _MLOG_API_URL in cfgitems:
                 api_url = cfgitems[_MLOG_API_URL]
             if _MLOG_LOG_FILE in cfgitems:
@@ -254,11 +272,10 @@ class mlog(object):
 
     def _get_ident(self, level, user, file_):
         return "[" + self._subsystem + "] [" + _MLOG_LEVEL_TO_TEXT[level] + \
-            "] [" + user + "] [" + file_ + "] [" + _os.getpid() + "]"
+            "] [" + user + "] [" + file_ + "] [" + str(_os.getpid()) + "]"
 
     def _syslog(self, facility, level, user, file_, message):
-        _syslog.openlog(self._get_ident(level, user, file_), '',
-                       facility)
+        _syslog.openlog(self._get_ident(level, user, file_), facility=facility)
         _syslog.syslog(_MLOG_TO_SYSLOG[level], message)
         _syslog.closelog()
 
@@ -270,9 +287,9 @@ class mlog(object):
             with open(self.get_log_file(), 'a') as log:
                 log.write(msg)
         except Exception as e:
-            _warnings.warn('Could not write to log file ' +
-                           str(self.get_log_file()) + ': ' + str(e) +
-                           '. Message was: ' + msg)
+            err = 'Could not write to log file ' + str(self.get_log_file()) + \
+                ': ' + str(e) + '. Message was: ' + msg
+            _warnings.warn(err)
 
     def logit(self, level, message):
         message = str(message)
