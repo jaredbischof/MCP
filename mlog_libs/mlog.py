@@ -135,9 +135,9 @@ class mlog(object):
 
         self._subsystem = str(subsystem)
         self._mlog_config_file = config
-        if not config:
+        if not self._mlog_config_file:
             self._mlog_config_file = _os.environ.get(MLOG_ENV_FILE, None)
-        if not config:
+        if not self._mlog_config_file:
             self._mlog_config_file = MLOG_CONF_FILE_DEFAULT
         self._mlog_config_file = str(self._mlog_config_file)
         self._user_log_level = -1
@@ -199,6 +199,8 @@ class mlog(object):
                 api_url = cfgitems[_MLOG_API_URL]
             if _MLOG_LOG_FILE in cfgitems:
                 self._config_log_file = cfgitems[_MLOG_LOG_FILE]
+        elif(self._mlog_config_file):
+            _warnings.warn('Cannot read config file ' + self._mlog_config_file)
 
         if(api_url):
             subsystem_api_url = api_url + "/" + self._subsystem
