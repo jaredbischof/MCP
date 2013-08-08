@@ -70,13 +70,19 @@ import json
 import urllib2
 import syslog
 import datetime
-import re
 import inspect
 import os
 import getpass
 import warnings
+from ConfigParser import ConfigParser
 
-MLOG_CONF_FILE = "/etc/mlog/mlog.conf"
+MLOG_CONF_FILE_DEFAULT = "/etc/mlog/mlog.conf"
+MLOG_ENV_FILE = 'MLOG_CONFIG_FILE'
+GLOBAL = 'global'
+MLOG_LOG_LEVEL = 'mlog_log_level'
+MLOG_API_URL = 'mlog_api_url'
+MLOG_LOG_FILE = 'mlog_log_file'
+
 DEFAULT_LOG_LEVEL = 6
 #MSG_CHECK_COUNT = 100
 #MSG_CHECK_INTERVAL = 300  # 300s = 5min
@@ -97,12 +103,12 @@ MLOG_TO_SYSLOG = [syslog.LOG_EMERG, syslog.LOG_ALERT, syslog.LOG_CRIT,
                  syslog.LOG_ERR, syslog.LOG_WARNING, syslog.LOG_NOTICE,
                  syslog.LOG_INFO, syslog.LOG_DEBUG, syslog.LOG_DEBUG,
                  syslog.LOG_DEBUG]
-ALLOWED_LOG_LEVELS = set(MLOG_TEXT_TO_LEVEL.value())
-LOG_LEVEL_MIN = min(ALLOWED_LOG_LEVELS)
-LOG_LEVEL_MAX = max(ALLOWED_LOG_LEVELS)
+#ALLOWED_LOG_LEVELS = set(MLOG_TEXT_TO_LEVEL.values())
 MLOG_LEVEL_TO_TEXT = {}
 for k, v in MLOG_TEXT_TO_LEVEL.iteritems():
     MLOG_LEVEL_TO_TEXT[v] = k
+LOG_LEVEL_MIN = min(MLOG_LEVEL_TO_TEXT.keys())
+LOG_LEVEL_MAX = max(MLOG_LEVEL_TO_TEXT.keys())
 
 
 class mlog(object):
@@ -110,18 +116,24 @@ class mlog(object):
     This class contains the methods necessary for sending log messages.
     """
 
-    def __init__(self, subsystem, constraints=None):
+    def __init__(self, subsystem, constraints=None, config=None):
         if not subsystem:
             raise ValueError("Subsystem must be supplied")
 
         self.subsystem = subsystem
         self.user_log_level = -1
+        self.config_log_level = -1
+        self.config_log_file = config
+        if not config:
+            self.config_log_file = os.environ.get(MLOG_ENV_FILE, None)
+        if not config:
+            self.config_log_file = MLOG_CONF_FILE_DEFAULT
         self.msg_count = 0
         self.recheck_api_msg = 100
         self.recheck_api_time = 300  # 5 mins
         self.log_constraints = {} if not constraints else constraints
 
-        self.update_api_log_level()
+        self.update_config()
 
     def _get_time_since_start(self):
         time_diff = datetime.datetime.now() - self.time_since_api_update
@@ -135,19 +147,38 @@ class mlog(object):
         else:
             return DEFAULT_LOG_LEVEL
 
-    def update_api_log_level(self):
+    def _get_config_items(self, cfg, section):
+        cfgitems = {}
+        if cfg.has_section(section):
+            for k, v in cfg.items(section):
+                cfgitems[k] = v
+        return cfgitems
+
+    def update_config(self):
         self.api_log_level = -1
         self.msgs_since_api_update = 0
         self.time_since_api_update = datetime.datetime.now()
 
+        api_url = None
+        print self.config_log_file
+        if os.path.isfile(self.config_log_file):
+            cfg = ConfigParser()
+            cfg.read(self.config_log_file)
+            cfgitems = self._get_config_items(cfg, GLOBAL)
+            cfgitems.update(self._get_config_items(cfg, self.subsystem))
+            if MLOG_LOG_LEVEL in cfgitems:
+                self.config_log_level = cfgitems[MLOG_LOG_LEVEL]
+            if MLOG_API_URL in cfgitems:
+                api_url = cfgitems[MLOG_API_URL]
+            if MLOG_LOG_FILE in cfgitems:
+                self.config_log_file = cfgitems[MLOG_LOG_FILE]
         # Retrieving the control API defined log level
-        api_url = ""
-        for line in open(MLOG_CONF_FILE):
-            line.strip()
-            if(re.match(r'^url\s+', line)):
-                api_url = line.split()[1]
+#        for line in open(MLOG_CONF_FILE):
+#            line.strip()
+#            if(re.match(r'^url\s+', line)):
+#                api_url = line.split()[1]
 
-        if(api_url != ""):
+        if(api_url):
             subsystem_api_url = api_url + "/" + self.subsystem
             try:
                 data = json.load(urllib2.urlopen(subsystem_api_url, timeout=5))
@@ -160,14 +191,6 @@ class mlog(object):
                     '{}:{} {}. Using default log level {}.'.format(
                     subsystem_api_url, code_, str(e.reason),
                     str(DEFAULT_LOG_LEVEL)))
-#                sys.stderr.write(e.code + "\n")
-#            except urllib2.URLError, e:
-#                sys.stderr.write("WARNING: Could not access control API at '"
-#                                 + subsystem_api_url + "'\n")
-#                sys.stderr.write("           due to urllib2 error '"
-#                                 + str(e.args) + "'\n")
-#                sys.stderr.write("         Will instead use default log level of '"
-#                                 + str(DEFAULT_LOG_LEVEL) + "'\n")
             else:
                 max_matching_level = -1
                 for constraint_set in data['log_levels']:
@@ -192,7 +215,7 @@ class mlog(object):
     def _get_log_level(self, level):
         if(level in MLOG_TEXT_TO_LEVEL):
             level = MLOG_TEXT_TO_LEVEL[level]
-        elif(level not in ALLOWED_LOG_LEVELS):
+        elif(level not in MLOG_LEVEL_TO_TEXT):
             raise ValueError('Illegal log level')
         return level
 
@@ -203,18 +226,12 @@ class mlog(object):
         count = int(count)
         if count < 0:
             raise ValueError('Cannot check a negative number of messages')
-#        if(not isinstance(count, int)):
-#            sys.stderr.write("ERROR: Format for calling set_log_msg_check_count is set_log_msg_check_count(integer count)\n")
-#            return 1
         self.recheck_api_msg = count
 
     def set_log_msg_check_interval(self, interval):
         interval = int(interval)
         if interval < 0:
             raise ValueError('interval must be positive')
-#        if(not isinstance(interval, int)):
-#            sys.stderr.write("ERROR: Format for calling set_log_msg_check_interval is set_log_msg_check_interval(integer seconds)\n")
-#            return 1
         self.recheck_api_time = interval
 
     def use_api_log_level(self):

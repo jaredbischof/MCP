@@ -174,6 +174,7 @@ sub update_config {
         my $subsys_hash = $cfg->get_block($SUBSYSTEM);
         my $global_hash = $cfg->get_block('global');
         
+        #TODO subsys overrides global
         if(exists $subsys_hash->{'mlog_log_level'}) {
             $CONFIG_LOG_LEVEL = $subsys_hash->{'mlog_log_level'};
         } elsif(exists $global_hash->{'mlog_log_level'}) {
