@@ -76,13 +76,14 @@ import os as _os
 import getpass as _getpass
 import warnings as _warnings
 from ConfigParser import ConfigParser as _ConfigParser
+import time
 
 MLOG_CONF_FILE_DEFAULT = "/etc/mlog/mlog.conf"
 MLOG_ENV_FILE = 'MLOG_CONFIG_FILE'
 _GLOBAL = 'global'
-_MLOG_LOG_LEVEL = 'mlog_log_level'
-_MLOG_API_URL = 'mlog_api_url'
-_MLOG_LOG_FILE = 'mlog_log_file'
+MLOG_LOG_LEVEL = 'mlog_log_level'
+MLOG_API_URL = 'mlog_api_url'
+MLOG_LOG_FILE = 'mlog_log_file'
 
 DEFAULT_LOG_LEVEL = 6
 #MSG_CHECK_COUNT = 100
@@ -129,10 +130,13 @@ class mlog(object):
     This class contains the methods necessary for sending log messages.
     """
 
-    def __init__(self, subsystem, constraints=None, config=None, logfile=None):
+    def __init__(self, subsystem, constraints=None, config=None, logfile=None,
+                 authuser=False, method=False):
         if not subsystem:
             raise ValueError("Subsystem must be supplied")
 
+        self.authuser = authuser
+        self.method = method
         self._subsystem = str(subsystem)
         self._mlog_config_file = config
         if not self._mlog_config_file:
@@ -187,18 +191,18 @@ class mlog(object):
             cfg.read(self._mlog_config_file)
             cfgitems = self._get_config_items(cfg, _GLOBAL)
             cfgitems.update(self._get_config_items(cfg, self._subsystem))
-            if _MLOG_LOG_LEVEL in cfgitems:
+            if MLOG_LOG_LEVEL in cfgitems:
                 try:
-                    self._config_log_level = int(cfgitems[_MLOG_LOG_LEVEL])
+                    self._config_log_level = int(cfgitems[MLOG_LOG_LEVEL])
                 except:
                     _warnings.warn(
                         'Cannot parse log level {} from file {} to int'.format(
-                            cfgitems[_MLOG_LOG_LEVEL], self._mlog_config_file)
+                            cfgitems[MLOG_LOG_LEVEL], self._mlog_config_file)
                         + '. Keeping current log level.')
-            if _MLOG_API_URL in cfgitems:
-                api_url = cfgitems[_MLOG_API_URL]
-            if _MLOG_LOG_FILE in cfgitems:
-                self._config_log_file = cfgitems[_MLOG_LOG_FILE]
+            if MLOG_API_URL in cfgitems:
+                api_url = cfgitems[MLOG_API_URL]
+            if MLOG_LOG_FILE in cfgitems:
+                self._config_log_file = cfgitems[MLOG_LOG_FILE]
         elif(self._mlog_config_file):
             _warnings.warn('Cannot read config file ' + self._mlog_config_file)
 
@@ -272,19 +276,25 @@ class mlog(object):
     def clear_user_log_level(self):
         self._user_log_level = -1
 
-    def _get_ident(self, level, user, file_):
-        return "[" + self._subsystem + "] [" + _MLOG_LEVEL_TO_TEXT[level] + \
-            "] [" + user + "] [" + file_ + "] [" + str(_os.getpid()) + "]"
+    def _get_ident(self, level, user, file_, authuser, method):
+        infos = [self._subsystem, _MLOG_LEVEL_TO_TEXT[level], repr(time.time()),
+                 user, file_, str(_os.getpid())]
+        if self.authuser:
+            infos.append(str(authuser) if authuser else '-')
+        if self.method:
+            infos.append(str(method) if method else '-')
+        return "[" + "] [".join(infos) + "]"
 
-    def _syslog(self, facility, level, user, file_, message):
-        _syslog.openlog(self._get_ident(level, user, file_), facility=facility)
+    def _syslog(self, facility, level, user, file_, authuser, method, message):
+        _syslog.openlog(self._get_ident(level, user, file_, authuser, method),
+                        facility=facility)
         _syslog.syslog(_MLOG_TO_SYSLOG[level], message)
         _syslog.closelog()
 
-    def _log(self, level, user, file_, message):
+    def _log(self, level, user, file_, authuser, method, message):
         msg = ' '.join([str(_datetime.datetime.now()), _platform.node(),
-                        self._get_ident(level, user, file_) + ':', message]) \
-                        + '\n'
+                        self._get_ident(level, user, file_, authuser, method)
+                        + ':', message]) + '\n'
         try:
             with open(self.get_log_file(), 'a') as log:
                 log.write(msg)
@@ -293,7 +303,7 @@ class mlog(object):
                 ': ' + str(e) + '. Message was: ' + msg
             _warnings.warn(err)
 
-    def logit(self, level, message):
+    def logit(self, level, message, authuser=None, method=None):
         message = str(message)
         level = self._resolve_log_level(level)
 
@@ -310,12 +320,14 @@ class mlog(object):
         # If this message is an emergency, send a copy to the emergency
         # facility first.
         if(level == 0):
-            self._syslog(EMERG_FACILITY, level, user, file_, message)
+            self._syslog(EMERG_FACILITY, level, user, file_, authuser, method,
+                         message)
 
         if(level <= self.get_log_level()):
-            self._syslog(MSG_FACILITY, level, user, file_, message)
+            self._syslog(MSG_FACILITY, level, user, file_, authuser, method,
+                         message)
             if self.get_log_file():
-                self._log(level, user, file_, message)
+                self._log(level, user, file_, authuser, method, message)
 
 if __name__ == '__main__':
     pass
