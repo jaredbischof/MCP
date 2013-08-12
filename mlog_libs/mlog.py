@@ -131,12 +131,17 @@ class mlog(object):
     """
 
     def __init__(self, subsystem, constraints=None, config=None, logfile=None,
-                 authuser=False, method=False):
+                 authuser=False, module=False, method=False, call_id=False,
+                 changecallback=None):
         if not subsystem:
             raise ValueError("Subsystem must be supplied")
 
         self.authuser = authuser
+        self.module = module
         self.method = method
+        self.call_id = call_id
+        noop = lambda: None
+        self._callback = changecallback or noop
         self._subsystem = str(subsystem)
         self._mlog_config_file = config
         if not self._mlog_config_file:
@@ -180,6 +185,9 @@ class mlog(object):
         return cfgitems
 
     def update_config(self):
+        loglevel = self.get_log_level()
+        logfile = self.get_log_file()
+
         self._api_log_level = -1
         self._msgs_since_config_update = 0
         self._time_at_config_update = _datetime.datetime.now()
@@ -203,7 +211,7 @@ class mlog(object):
                 api_url = cfgitems[MLOG_API_URL]
             if MLOG_LOG_FILE in cfgitems:
                 self._config_log_file = cfgitems[MLOG_LOG_FILE]
-        elif(self._mlog_config_file):
+        elif self._mlog_config_file:
             _warnings.warn('Cannot read config file ' + self._mlog_config_file)
 
         if(api_url):
@@ -240,6 +248,8 @@ class mlog(object):
                         max_matching_level = level
 
                 self._api_log_level = max_matching_level
+        if self.get_log_level() != loglevel or self.get_log_file() != logfile:
+            self._callback()
 
     def _resolve_log_level(self, level):
         if(level in _MLOG_TEXT_TO_LEVEL):
@@ -250,6 +260,7 @@ class mlog(object):
 
     def set_log_level(self, level):
         self._user_log_level = self._resolve_log_level(level)
+        self._callback()
 
     def get_log_file(self):
         if self._user_log_file:
@@ -260,6 +271,7 @@ class mlog(object):
 
     def set_log_file(self, filename):
         self._user_log_file = filename
+        self._callback()
 
     def set_log_msg_check_count(self, count):
         count = int(count)
@@ -275,25 +287,35 @@ class mlog(object):
 
     def clear_user_log_level(self):
         self._user_log_level = -1
+        self._callback()
 
-    def _get_ident(self, level, user, file_, authuser, method):
-        infos = [self._subsystem, _MLOG_LEVEL_TO_TEXT[level], repr(time.time()),
-                 user, file_, str(_os.getpid())]
+    def _get_ident(self, level, user, file_, authuser, module, method,
+                   call_id):
+        infos = [self._subsystem, _MLOG_LEVEL_TO_TEXT[level],
+                 repr(time.time()), user, file_, str(_os.getpid())]
         if self.authuser:
             infos.append(str(authuser) if authuser else '-')
+        if self.module:
+            infos.append(str(module) if module else '-')
         if self.method:
             infos.append(str(method) if method else '-')
+        if self.call_id:
+            infos.append(str(call_id) if call_id else '-')
         return "[" + "] [".join(infos) + "]"
 
-    def _syslog(self, facility, level, user, file_, authuser, method, message):
-        _syslog.openlog(self._get_ident(level, user, file_, authuser, method),
+    def _syslog(self, facility, level, user, file_, authuser, module, method,
+                call_id, message):
+        _syslog.openlog(self._get_ident(level, user, file_, authuser, module,
+                                        method, call_id),
                         facility=facility)
         _syslog.syslog(_MLOG_TO_SYSLOG[level], message)
         _syslog.closelog()
 
-    def _log(self, level, user, file_, authuser, method, message):
+    def _log(self, level, user, file_, authuser, module, method, message,
+             call_id):
         msg = ' '.join([str(_datetime.datetime.now()), _platform.node(),
-                        self._get_ident(level, user, file_, authuser, method)
+                        self._get_ident(level, user, file_, authuser, module,
+                                        method, call_id)
                         + ':', message]) + '\n'
         try:
             with open(self.get_log_file(), 'a') as log:
@@ -303,7 +325,8 @@ class mlog(object):
                 ': ' + str(e) + '. Message was: ' + msg
             _warnings.warn(err)
 
-    def logit(self, level, message, authuser=None, method=None):
+    def logit(self, level, message, authuser=None, module=None, method=None,
+              call_id=None):
         message = str(message)
         level = self._resolve_log_level(level)
 
@@ -320,14 +343,15 @@ class mlog(object):
         # If this message is an emergency, send a copy to the emergency
         # facility first.
         if(level == 0):
-            self._syslog(EMERG_FACILITY, level, user, file_, authuser, method,
-                         message)
+            self._syslog(EMERG_FACILITY, level, user, file_, authuser, module,
+                         method, call_id, message)
 
         if(level <= self.get_log_level()):
-            self._syslog(MSG_FACILITY, level, user, file_, authuser, method,
-                         message)
+            self._syslog(MSG_FACILITY, level, user, file_, authuser, module,
+                         method, call_id, message)
             if self.get_log_file():
-                self._log(level, user, file_, authuser, method, message)
+                self._log(level, user, file_, authuser, module, method,
+                          call_id, message)
 
 if __name__ == '__main__':
     pass
