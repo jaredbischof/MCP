@@ -161,7 +161,9 @@ class mlog(object):
         self._recheck_api_time = 300  # 5 mins
         self._log_constraints = {} if not constraints else constraints
 
+        self._init = True
         self.update_config()
+        self._init = False
 
     def _get_time_since_start(self):
         time_diff = _datetime.datetime.now() - self._time_at_config_update
@@ -248,7 +250,8 @@ class mlog(object):
                         max_matching_level = level
 
                 self._api_log_level = max_matching_level
-        if self.get_log_level() != loglevel or self.get_log_file() != logfile:
+        if ((self.get_log_level() != loglevel or
+             self.get_log_file() != logfile) and not self._init):
             self._callback()
 
     def _resolve_log_level(self, level):
@@ -311,8 +314,8 @@ class mlog(object):
         _syslog.syslog(_MLOG_TO_SYSLOG[level], message)
         _syslog.closelog()
 
-    def _log(self, level, user, file_, authuser, module, method, message,
-             call_id):
+    def _log(self, level, user, file_, authuser, module, method, call_id,
+             message):
         msg = ' '.join([str(_datetime.datetime.now()), _platform.node(),
                         self._get_ident(level, user, file_, authuser, module,
                                         method, call_id)
