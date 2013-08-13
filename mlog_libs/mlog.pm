@@ -13,6 +13,7 @@ use Cwd 'abs_path';
 use Data::Dumper;
 use Sys::Hostname;
 use List::Util qw[min max];
+use Time::HiRes;
 
 use Sys::Syslog qw( :DEFAULT setlogsock);
 
@@ -340,7 +341,7 @@ sub clear_user_log_level {
 sub _get_ident {
     my ($self, $level, $user, $file, $authuser, $module, $method, $call_id) = @_;
     my @infos = ($self->{_subsystem}, $_MLOG_LEVEL_TO_TEXT->{$level},
-                    DateTime->now()->epoch(), $user, $file, $$);
+                    Time::HiRes::time(), $user, $file, $$);
     if ($self->{authuser}) {
         push @infos, $authuser;
     }
