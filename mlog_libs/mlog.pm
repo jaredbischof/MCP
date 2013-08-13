@@ -27,8 +27,6 @@ my $MLOG_API_URL = "mlog_api_url";
 my $MLOG_LOG_FILE = "mlog_log_file";
 
 my $DEFAULT_LOG_LEVEL = 6;
-#my $MSG_CHECK_COUNT = 100;
-#my $MSG_CHECK_INTERVAL = 300; # 300s = 5min
 my $MSG_FACILITY = 'local1';
 my $EMERG_FACILITY = 'local0';
 
@@ -64,28 +62,6 @@ foreach my $k ($_MLOG_TEXT_TO_LEVEL->keys()) {
 
 my $LOG_LEVEL_MIN = min($_MLOG_LEVEL_TO_TEXT->keys());
 my $LOG_LEVEL_MAX = max($_MLOG_LEVEL_TO_TEXT->keys());
-
-#my @SYSLOG_LEVEL_TEXT  = ( 'emerg', 'alert', 'crit', 'err',
-#                           'warning', 'notice', 'info', 'debug' );
-#my %MLOG_TEXT_TO_LEVEL = ( 'EMERGENCY' => 0,
-#                           'ERROR' => 1,
-#                           'WARNING' => 2,
-#                           'INFO' => 3,
-#                           'DEBUG' => 4,
-#                           'DEBUG2' => 5,
-#                           'DEBUG3' => 6 );
-#my @MLOG_LEVELS = ( 'EMERGENCY', 'ERROR', 'WARNING', 'INFO', 'DEBUG', 'DEBUG2', 'DEBUG3' );
-
-#my $SUBSYSTEM = "";
-#my $API_LOG_LEVEL = -1;
-#my $USER_LOG_LEVEL = -1;
-#my $USER_LOG_FILE = "";
-#my $CONFIG_LOG_LEVEL = -1;
-#my $CONFIG_LOG_FILE = "";
-#my $LOG_CONSTRAINTS;
-#my $MSG_COUNT = 0;
-#my $TIME_AT_LAST_CONFIG_UPDATE = "";
-#my $MSGS_SINCE_LAST_CONFIG_UPDATE = 0;
 
 =pod
 
@@ -213,14 +189,7 @@ sub new {
     if(defined $lc) {
         $self->{_log_constraints} = $lc;
     }
-#    $USER_LOG_LEVEL = -1;
-#    $CONFIG_LOG_LEVEL = -1;
-#    $CONFIG_LOG_FILE = "";
-#    $MSG_COUNT = 0;
-#
-#    if(exists $ENV{'MLOG_CONFIG_FILE'}) {
-#        $MLOG_CONFIG_FILE = $ENV{'MLOG_CONFIG_FILE'};
-#    }
+
     $self->{_init} = 1;
     $self->update_config();
     $self->{_init} = undef;
@@ -255,10 +224,6 @@ sub update_config {
     $self->{_msgs_since_config_update} = 0;
     $self->{_time_at_config_update} = DateTime->now( time_zone => 'local' )->set_time_zone('floating');
     
-#    $API_LOG_LEVEL = -1;
-#    $MSGS_SINCE_LAST_CONFIG_UPDATE = 0;
-#    $TIME_AT_LAST_CONFIG_UPDATE = DateTime->now( time_zone => 'local' )->set_time_zone('floating');
-
     # Retrieving config variables.
     my $api_url = "";
     if(-e $self->{_mlog_config_file} && -s $self->{_mlog_config_file} > 0) {
@@ -282,23 +247,6 @@ sub update_config {
         if(defined $cfg->{$MLOG_LOG_FILE}) {
             $self->{_config_log_file} = $cfg->{$MLOG_LOG_FILE}
         }
-#        if(exists $subsys_hash->{'mlog_log_level'}) {
-#            $CONFIG_LOG_LEVEL = $subsys_hash->{'mlog_log_level'};
-#        } elsif(exists $global_hash->{'mlog_log_level'}) {
-#            $CONFIG_LOG_LEVEL = $global_hash->{'mlog_log_level'};
-#        }
-#                
-#        if(exists $subsys_hash->{'mlog_api_url'}) {
-#            $api_url = $subsys_hash->{'mlog_api_url'};
-#        } elsif(exists $global_hash->{'mlog_api_url'}) {
-#            $api_url = $global_hash->{'mlog_api_url'};
-#        }
-#
-#        if(exists $subsys_hash->{'mlog_log_file'}) {
-#            $CONFIG_LOG_FILE = $subsys_hash->{'mlog_log_file'};
-#        } elsif(exists $global_hash->{'mlog_log_file'}) {
-#            $CONFIG_LOG_FILE = $global_hash->{'mlog_log_file'};
-#        }
     } elsif (defined $self->{_mlog_config_file}) {
         warn "Cannot read config file $self->{_mlog_config_file}";
     }
@@ -348,13 +296,6 @@ sub set_log_level {
     my ($self, $level) = @_;
     $self->{_user_log_level} = $self->_resolve_log_level($level);
     $self->{_callback}();
-#    if(exists $MLOG_TEXT_TO_LEVEL{$level}) {
-#        $level = $MLOG_TEXT_TO_LEVEL{$level};
-#    } elsif($level !~ /^\d+$/ || $level < 0 || $level > (@MLOG_LEVELS - 1)) {
-#        print STDERR "ERROR: Format for calling set_log_level is set_log_level(integer level) where level can range from 0 to ".(@MLOG_LEVELS - 1)." or be one of '".join("', '",keys %MLOG_TEXT_TO_LEVEL)."'\n";
-#        return 1;
-#    }
-#    $USER_LOG_LEVEL = $level;
 }
 
 sub get_log_file {
@@ -372,7 +313,6 @@ sub set_log_file {
     my ($self, $filename) = @_;
     $self->{_user_log_file} = $filename;
     $self->{_callback}();
-#    $USER_LOG_FILE = $filename;
 }
 
 sub set_log_msg_check_count {
@@ -381,7 +321,6 @@ sub set_log_msg_check_count {
         die "Format for calling set_log_msg_check_count is set_log_msg_check_count(integer count)\n";
     }
     $self->{_recheck_api_msg} = $count;
-#    $MSG_CHECK_COUNT = $count;
 }
 
 sub set_log_msg_check_interval {
@@ -390,13 +329,11 @@ sub set_log_msg_check_interval {
         die "Format for calling set_log_msg_check_interval is set_log_msg_check_interval(integer seconds)\n";
     }
     $self->{_recheck_api_time} = $interval;
-#    $MSG_CHECK_INTERVAL = $interval;
 }
 
 sub clear_user_log_level {
     my ($self) = @_;
     $self->{_user_log_level} = -1;
-#    $USER_LOG_LEVEL = -1;
 }
 
 sub _get_ident {
@@ -441,28 +378,12 @@ sub _log {
 sub logit {
     my ($self, $level, $message, $authuser, $module, $method, $call_id) = @_;
     $level = $self->_resolve_log_level($level);
-#    if(@_ != 2 ||
-#       ($level !~ /^\d+$/ && (! exists $MLOG_TEXT_TO_LEVEL{$level})) ||
-#       ($level =~ /^\d+$/ && ($level < 0 || $level > (@MLOG_LEVELS - 1)))) {
-#        print STDERR "ERROR: Format for calling logit is logit(integer level, string message) where level can range from 0 to ".(@MLOG_LEVELS - 1)." or be one of '".join("', '",keys %MLOG_TEXT_TO_LEVEL)."'\n";
-#        return 1;
-#    }
-#
-#    if($level !~ /^\d+$/) {
-#        $level = $MLOG_TEXT_TO_LEVEL{$level};
-#    }
-#
-#    if($MSG_COUNT == 0 && $TIME_AT_LAST_CONFIG_UPDATE eq "") {
-#        print STDERR "WARNING: init_mlog() was not called, so I will call it for you.\n";
-#        init_mlog();
-#    }
 
     ++$self->{msg_count};
     ++$self->{_msgs_since_config_update};
 
     my $user = $ENV{'USER'};
     my $file = abs_path($0);
-#    my $logopt = "";
 
     if($self->{_msgs_since_config_update} >= $self->{_recheck_api_msg} ||
         $self->_get_time_since_start() >= $self->{_recheck_api_time}) {
@@ -473,37 +394,15 @@ sub logit {
     if($level == 0) {
         $self->_syslog($EMERG_FACILITY, $level, $user, $file, $authuser,
             $module, $method, $call_id, $message);
-#        setlogsock('unix');
-#        openlog("[$SUBSYSTEM] [$MLOG_LEVELS[$level]] [$user] [$ident] [$$]", $logopt, $EMERG_FACILITY);
-#        syslog($SYSLOG_LEVEL_TEXT[$level], "$message");
-#        closelog();
     }
 
     if($level <= $self->get_log_level()) {
         $self->_syslog($MSG_FACILITY, $level, $user, $file, $authuser,
             $module, $method, $call_id, $message);
-#        setlogsock('unix');
-#        openlog("[$SUBSYSTEM] [$MLOG_LEVELS[$level]] [$user] [$ident] [$$]", $logopt, $MSG_FACILITY);
-#        syslog($SYSLOG_LEVEL_TEXT[$level], "$message");
-#        closelog();
         if($self->get_log_file()) {
             $self._log($level, $user, $file, $authuser, $module, $method,
                 $call_id, $message);
         }
-#        my $log_file = "";
-#        if($USER_LOG_FILE ne "") {
-#            $log_file = $USER_LOG_FILE;
-#        } elsif($CONFIG_LOG_FILE ne "") {
-#            $log_file = $CONFIG_LOG_FILE;
-#        }
-#
-#        if($log_file ne "") {
-#            open LOG, ">>$log_file" || print STDERR "Could not print log message to $log_file\n";
-#            print LOG localtime(time)." ".hostname." [$SUBSYSTEM] [$MLOG_LEVELS[$level]] [$user] [$ident] [$$]: $message\n";
-#            close LOG;
-#        }
-#    } else {
-#        return 1;
     }
 }
 
