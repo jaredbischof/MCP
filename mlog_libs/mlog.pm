@@ -19,49 +19,49 @@ use Sys::Syslog qw( :DEFAULT setlogsock);
 require Exporter;
 
 # $ENV{'MLOG_CONFIG_FILE'} should point to an INI-formatted file, or an empty string, or should not exist.
-my $MLOG_CONFIG_FILE_DEFAULT = "/etc/mlog/mlog.conf";
-my $MLOG_ENV_FILE = "MLOG_CONFIG_FILE";
+our $MLOG_CONFIG_FILE_DEFAULT = "/etc/mlog/mlog.conf";
+our $MLOG_ENV_FILE = "MLOG_CONFIG_FILE";
 my $_GLOBAL = "global";
-my $MLOG_LOG_LEVEL = "mlog_log_level";
-my $MLOG_API_URL = "mlog_api_url";
-my $MLOG_LOG_FILE = "mlog_log_file";
+our $MLOG_LOG_LEVEL = "mlog_log_level";
+our $MLOG_API_URL = "mlog_api_url";
+our $MLOG_LOG_FILE = "mlog_log_file";
 
-my $DEFAULT_LOG_LEVEL = 6;
-my $MSG_FACILITY = 'local1';
-my $EMERG_FACILITY = 'local0';
+our $DEFAULT_LOG_LEVEL = 6;
+our $MSG_FACILITY = 'local1';
+our $EMERG_FACILITY = 'local0';
 
-my $EMERG = 0;
-my $ALERT = 1;
-my $CRIT = 2;
-my $ERR = 3;
-my $WARNING = 4;
-my $NOTICE = 5;
-my $INFO = 6;
-my $DEBUG = 7;
-my $DEBUG2 = 8;
-my $DEBUG3 = 9;
+our $EMERG = 0;
+our $ALERT = 1;
+our $CRIT = 2;
+our $ERR = 3;
+our $WARNING = 4;
+our $NOTICE = 5;
+our $INFO = 6;
+our $DEBUG = 7;
+our $DEBUG2 = 8;
+our $DEBUG3 = 9;
 
 my $_MLOG_TEXT_TO_LEVEL = { 'EMERG' => $EMERG,
-							'ALERT' => $ALERT,
-							'CRIT' => $CRIT,
-							'ERR' => $ERR,
-							'WARNING' => $WARNING,
-							'NOTICE' => $NOTICE,
-							'INFO' => $INFO,
-							'DEBUG' => $DEBUG,
-							'DEBUG2' => $DEBUG2,
-							'DEBUG3' => $DEBUG3,
-							};
+                            'ALERT' => $ALERT,
+                            'CRIT' => $CRIT,
+                            'ERR' => $ERR,
+                            'WARNING' => $WARNING,
+                            'NOTICE' => $NOTICE,
+                            'INFO' => $INFO,
+                            'DEBUG' => $DEBUG,
+                            'DEBUG2' => $DEBUG2,
+                            'DEBUG3' => $DEBUG3,
+                            };
 
 my @_MLOG_TO_SYSLOG = (0, 1, 2, 3, 4, 5, 6, 7, 7, 7);
 
 my $_MLOG_LEVEL_TO_TEXT = {};
-foreach my $k ($_MLOG_TEXT_TO_LEVEL->keys()) {
-	$_MLOG_LEVEL_TO_TEXT->{$_MLOG_TEXT_TO_LEVEL->{$k}} = $k;
+foreach my $k (keys %{$_MLOG_TEXT_TO_LEVEL}) {
+        $_MLOG_LEVEL_TO_TEXT->{$_MLOG_TEXT_TO_LEVEL->{$k}} = $k;
 }
 
-my $LOG_LEVEL_MIN = min($_MLOG_LEVEL_TO_TEXT->keys());
-my $LOG_LEVEL_MAX = max($_MLOG_LEVEL_TO_TEXT->keys());
+our $LOG_LEVEL_MIN = min(keys %{$_MLOG_LEVEL_TO_TEXT});
+our $LOG_LEVEL_MAX = max(keys %{$_MLOG_LEVEL_TO_TEXT});
 
 =pod
 
@@ -193,6 +193,7 @@ sub new {
     $self->{_init} = 1;
     $self->update_config();
     $self->{_init} = undef;
+    return $self;
 }
 
 sub _get_time_since_start {
