@@ -12,39 +12,57 @@ use DateTime;
 use Cwd 'abs_path';
 use Data::Dumper;
 use Sys::Hostname;
+use List::Util qw[min max];
+use Time::HiRes;
 
 use Sys::Syslog qw( :DEFAULT setlogsock);
 
 require Exporter;
 
 # $ENV{'MLOG_CONFIG_FILE'} should point to an INI-formatted file, or an empty string, or should not exist.
-my $MLOG_CONFIG_FILE = "";
-my $DEFAULT_LOG_LEVEL = 3;
-my $MSG_CHECK_COUNT = 100;
-my $MSG_CHECK_INTERVAL = 300; # 300s = 5min
-my $MSG_FACILITY = 'local1';
-my $EMERG_FACILITY = 'local0';
-my @SYSLOG_LEVEL_TEXT  = ( 'emerg', 'alert', 'crit', 'err',
-                           'warning', 'notice', 'info', 'debug' );
-my %MLOG_TEXT_TO_LEVEL = ( 'EMERGENCY' => 0,
-                           'ERROR' => 1,
-                           'WARNING' => 2,
-                           'INFO' => 3,
-                           'DEBUG' => 4,
-                           'DEBUG2' => 5,
-                           'DEBUG3' => 6 );
-my @MLOG_LEVELS = ( 'EMERGENCY', 'ERROR', 'WARNING', 'INFO', 'DEBUG', 'DEBUG2', 'DEBUG3' );
+our $MLOG_CONFIG_FILE_DEFAULT = "/etc/mlog/mlog.conf";
+our $MLOG_ENV_FILE = "MLOG_CONFIG_FILE";
+my $_GLOBAL = "global";
+our $MLOG_LOG_LEVEL = "mlog_log_level";
+our $MLOG_API_URL = "mlog_api_url";
+our $MLOG_LOG_FILE = "mlog_log_file";
 
-my $SUBSYSTEM = "";
-my $API_LOG_LEVEL = -1;
-my $USER_LOG_LEVEL = -1;
-my $USER_LOG_FILE = "";
-my $CONFIG_LOG_LEVEL = -1;
-my $CONFIG_LOG_FILE = "";
-my $LOG_CONSTRAINTS;
-my $MSG_COUNT = 0;
-my $TIME_AT_LAST_CONFIG_UPDATE = "";
-my $MSGS_SINCE_LAST_CONFIG_UPDATE = 0;
+our $DEFAULT_LOG_LEVEL = 6;
+our $MSG_FACILITY = 'local1';
+our $EMERG_FACILITY = 'local0';
+
+our $EMERG = 0;
+our $ALERT = 1;
+our $CRIT = 2;
+our $ERR = 3;
+our $WARNING = 4;
+our $NOTICE = 5;
+our $INFO = 6;
+our $DEBUG = 7;
+our $DEBUG2 = 8;
+our $DEBUG3 = 9;
+
+my $_MLOG_TEXT_TO_LEVEL = { 'EMERG' => $EMERG,
+                            'ALERT' => $ALERT,
+                            'CRIT' => $CRIT,
+                            'ERR' => $ERR,
+                            'WARNING' => $WARNING,
+                            'NOTICE' => $NOTICE,
+                            'INFO' => $INFO,
+                            'DEBUG' => $DEBUG,
+                            'DEBUG2' => $DEBUG2,
+                            'DEBUG3' => $DEBUG3,
+                            };
+
+my @_MLOG_TO_SYSLOG = (0, 1, 2, 3, 4, 5, 6, 7, 7, 7);
+
+my $_MLOG_LEVEL_TO_TEXT = {};
+foreach my $k (keys %{$_MLOG_TEXT_TO_LEVEL}) {
+        $_MLOG_LEVEL_TO_TEXT->{$_MLOG_TEXT_TO_LEVEL->{$k}} = $k;
+}
+
+our $LOG_LEVEL_MIN = min(keys %{$_MLOG_LEVEL_TO_TEXT});
+our $LOG_LEVEL_MAX = max(keys %{$_MLOG_LEVEL_TO_TEXT});
 
 =pod
 
@@ -56,7 +74,7 @@ mlog (message log)
 
 A library for sending message logging to syslog.
 
-The library checks for the config variables: mlog_log_level, mlog_api_url, and mlog_log_file in an INI-formatted config file that can be specified by setting the environment variable MLOG_CONFIG_FILE. The library first looks for these variables under a 'section' in the INI file which matches the 'subsystem' name in your init_mlog() call. mlog_log_level can be used to set a global log level for mlog. mlog_api_url can be set to provide a control API for setting log levels. mlog_log_file can be set to provide the location of a file to which we can log messages in addition to syslog.
+The library checks for the config variables: mlog_log_level, mlog_api_url, and mlog_log_file in an INI-formatted config file that can be specified by setting the environment variable MLOG_CONFIG_FILE. The library first looks for these variables under a 'section' in the INI file which matches the 'subsystem' name in mlog->new() call. mlog_log_level can be used to set a global log level for mlog. mlog_api_url can be set to provide a control API for setting log levels. mlog_log_file can be set to provide the location of a file to which we can log messages in addition to syslog.
 
 The priority that is used to decide which log level setting is used for logging is as follows:
 
@@ -68,19 +86,19 @@ The priority that is used to decide which log level setting is used for logging 
 
 =item * API_LOG_LEVEL: log level set by the logging control server in the control API matching the log constraints (if mlog_api_url is specified in config file)
 
-=item * DEFAULT_LOG_LEVEL: INFO, log level = 3
+=item * DEFAULT_LOG_LEVEL: INFO, log level = 6
 
 =back
 
 =head1 METHODS
 
-init_mlog(string subsystem, hashref constraints): Initializes mlog. You should call this at the beginning of your program. Constraints are optional.
+mlog->new(string subsystem, hashref constraints): Create a new mlog instance. Constraints are optional.
 
 logit(int level, string message): sends log message to syslog.
 
 =over 10
 
-=item * level: (0-6) The logging level for this message is compared to the logging level that has been set in mlog.  If it is <= the set logging level, the message will be sent to syslog (and if specified in the mlog configuration, a log file), otherwise it will be ignored.  Logging level is set to 3 if message control API cannot be reached and the user does not set the log level. Log level can also be entered as string (e.g. 'DEBUG')
+=item * level: (0-9) The logging level for this message is compared to the logging level that has been set in mlog.  If it is <= the set logging level, the message will be sent to syslog (and if specified in the mlog configuration, a log file), otherwise it will be ignored.  Logging level is set to 6 if message control API cannot be reached and the user does not set the log level. Log level can also be entered as string (e.g. 'DEBUG')
 
 =item * message: This is the log message.
 
@@ -94,19 +112,25 @@ set_log_level(integer level) : Sets the log level. Only use this if you wish to 
 
 =item * level : priority
 
-=item * 0 : EMERGENCY - vital component is down
+=item * 0 : EMERG - system is unusable
 
-=item * 1 : ERROR - error that prevents proper operation
+=item * 1 : ALERT - component must be fixed immediately
 
-=item * 2 : WARNING - problem that does not prevent operation
+=item * 2 : CRIT - secondary component must be fixed immediately
 
-=item * 3 : INFO - high level information on operations
+=item * 3 : ERR - non-urgent failure
 
-=item * 4 : DEBUG - lowest level of debug
+=item * 4 : WARNING - warning that an error will occur if no action is taken
 
-=item * 5 : DEBUG2 - second level of debug
+=item * 5 : NOTICE - unusual but safe conditions
 
-=item * 6 : DEBUG3 - highest level of debug
+=item * 6 : INFO - normal operational messages
+
+=item * 7 : DEBUG - lowest level of debug
+
+=item * 8 : DEBUG2 - second level of debug
+
+=item * 9 : DEBUG3 - highest level of debug
 
 =back
 
@@ -122,79 +146,115 @@ clear_user_log_level() : Removes the user-defined log level.
 
 =cut
 
-sub init_mlog {
-    my ($sub, $lc) = @_;
+sub _get_option {
+    my ($opts, $key) = @_;
+    if(!(defined $opts)) {
+        return undef;
+    }
+    return defined $opts->{$key} ? $opts->{$key} : undef;
+}
+
+sub new {
+    my ($class, $sub, $lc, $options) = @_;
     unless(defined $sub) {
-        print STDERR "ERROR: You must define a subsystem when calling init_log()\n";
-        return 1;
+        die "ERROR: You must define a subsystem when calling init_log()\n";
     }
-    $SUBSYSTEM = $sub;
+    my $self = {};
+    bless $self, $class;
+    $self->{authuser} = _get_option($options, 'authuser');
+    $self->{module} = _get_option($options, 'module');
+    $self->{method} = _get_option($options, 'method');
+    $self->{call_id} = _get_option($options, 'call_id');
+    $self->{_callback} = defined $options->{"changecallback"} ? 
+            $options->{"changecallback"} : sub {};
+    $self->{_subsystem} = $sub;
+    $self->{_mlog_config_file} = _get_option($options, 'config');
+    if(!(defined $self->{_mlog_config_file})) {
+        $self->{_mlog_config_file} = defined $ENV{$MLOG_ENV_FILE} ?
+                $ENV{$MLOG_ENV_FILE} : undef;
+    }
+    if(!(defined $self->{_mlog_config_file})) {
+        $self->{_mlog_config_file} = $MLOG_CONFIG_FILE_DEFAULT;
+    }
+    $self->{_user_log_level} = -1;
+    $self->{_config_log_level} = -1;
+    $self->{_user_log_file} = _get_option($options, 'logfile');
+    $self->{_config_log_file} = undef;
+    $self->{_api_log_level} = -1;
+    $self->{_msgs_since_config_update} = 0;
+    $self->{_time_at_config_update} = "";
+    $self->{msg_count} = 0;
+    $self->{_recheck_api_msg} = 100;
+    $self->{_recheck_api_time} = 300;  # 5 mins
     if(defined $lc) {
-        $LOG_CONSTRAINTS = $lc;
-    }
-    $USER_LOG_LEVEL = -1;
-    $CONFIG_LOG_LEVEL = -1;
-    $CONFIG_LOG_FILE = "";
-    $MSG_COUNT = 0;
-
-    if(exists $ENV{'MLOG_CONFIG_FILE'}) {
-        $MLOG_CONFIG_FILE = $ENV{'MLOG_CONFIG_FILE'};
+        $self->{_log_constraints} = $lc;
     }
 
-    update_config();
+    $self->{_init} = 1;
+    $self->update_config();
+    $self->{_init} = undef;
+    return $self;
 }
 
 sub _get_time_since_start {
+    my ($self) = @_;
     my $now = DateTime->now( time_zone => 'local' )->set_time_zone('floating');
-    my $seconds_duration = $now->subtract_datetime_absolute($TIME_AT_LAST_CONFIG_UPDATE);
+    my $seconds_duration = $now->subtract_datetime_absolute($self->{_time_at_config_update});
     return $seconds_duration->seconds;
 }
 
 sub get_log_level {
-    if($USER_LOG_LEVEL != -1) {
-        return $USER_LOG_LEVEL;
-    } elsif($CONFIG_LOG_LEVEL != -1) {
-        return $CONFIG_LOG_LEVEL;
-    } elsif($API_LOG_LEVEL != -1) {
-        return $API_LOG_LEVEL;
+    my ($self) = @_;
+    if($self->{_user_log_level} != -1) {
+        return $self->{_user_log_level};
+    } elsif($self->{_config_log_level} != -1) {
+        return $self->{_config_log_level};
+    } elsif($self->{_api_log_level} != -1) {
+        return $self->{_api_log_level};
     } else {
         return $DEFAULT_LOG_LEVEL;
     }
 }
 
 sub update_config {
-    $API_LOG_LEVEL = -1;
-    $MSGS_SINCE_LAST_CONFIG_UPDATE = 0;
-    $TIME_AT_LAST_CONFIG_UPDATE = DateTime->now( time_zone => 'local' )->set_time_zone('floating');
-
+    my ($self) = @_;
+    my $loglevel = $self->get_log_level();
+    my $logfile = $self->get_log_file();
+    
+    $self->{_api_log_level} = -1;
+    $self->{_msgs_since_config_update} = 0;
+    $self->{_time_at_config_update} = DateTime->now( time_zone => 'local' )->set_time_zone('floating');
+    
     # Retrieving config variables.
     my $api_url = "";
-    if(-e $MLOG_CONFIG_FILE && -s $MLOG_CONFIG_FILE > 0) {
-        my $cfg = new Config::Simple($MLOG_CONFIG_FILE);
-        my $subsys_hash = $cfg->get_block($SUBSYSTEM);
-        my $global_hash = $cfg->get_block('global');
-        
-        if(exists $subsys_hash->{'mlog_log_level'}) {
-            $CONFIG_LOG_LEVEL = $subsys_hash->{'mlog_log_level'};
-        } elsif(exists $global_hash->{'mlog_log_level'}) {
-            $CONFIG_LOG_LEVEL = $global_hash->{'mlog_log_level'};
+    if(-e $self->{_mlog_config_file} && -s $self->{_mlog_config_file} > 0) {
+        my $cfg = new Config::Simple($self->{_mlog_config_file});
+        my $cfgitems = $cfg->get_block($_GLOBAL);
+        my $subitems = $cfg->get_block($self->{_subsystem});
+        foreach my $k (keys %{$subitems}) {
+            $cfgitems->{$k} = $subitems->{$k};
         }
-                
-        if(exists $subsys_hash->{'mlog_api_url'}) {
-            $api_url = $subsys_hash->{'mlog_api_url'};
-        } elsif(exists $global_hash->{'mlog_api_url'}) {
-            $api_url = $global_hash->{'mlog_api_url'};
+        if(defined $cfgitems->{$MLOG_LOG_LEVEL}) {
+            if($cfgitems->{$MLOG_LOG_LEVEL} !~ /^\d+$/) {
+                warn "Cannot parse log level " . $cfgitems->{$MLOG_LOG_LEVEL} . 
+                    " from file " . $self->{_mlog_config_file} . 
+                    " to int. Keeping current log level.";
+            } else {
+                $self->{_config_log_level} = $cfgitems->{$MLOG_LOG_LEVEL};
+            }
         }
-
-        if(exists $subsys_hash->{'mlog_log_file'}) {
-            $CONFIG_LOG_FILE = $subsys_hash->{'mlog_log_file'};
-        } elsif(exists $global_hash->{'mlog_log_file'}) {
-            $CONFIG_LOG_FILE = $global_hash->{'mlog_log_file'};
+        if(defined $cfgitems->{$MLOG_API_URL}) {
+            $api_url = $cfgitems->{$MLOG_API_URL};
         }
+        if(defined $cfgitems->{$MLOG_LOG_FILE}) {
+            $self->{_config_log_file} = $cfgitems->{$MLOG_LOG_FILE}
+        }
+    } elsif (defined $self->{_mlog_config_file}) {
+        warn "Cannot read config file " . $self->{_mlog_config_file};
     }
 
     unless($api_url eq "") {
-        my $subsystem_api_url = $api_url."/$SUBSYSTEM";
+        my $subsystem_api_url = $api_url."/".$self->{_subsystem};
         my $json = get($subsystem_api_url);
         if(defined $json) {
             my $decoded_json = decode_json($json);
@@ -207,9 +267,9 @@ sub update_config {
                 }
                 my $matches = 1;
                 foreach my $constraint (keys %{$constraints}) {
-                    if(! exists $LOG_CONSTRAINTS->{$constraint}) {
+                    if(! exists $self->{_log_constraints}->{$constraint}) {
                         $matches = 0;
-                    } elsif($LOG_CONSTRAINTS->{$constraint} ne $constraints->{$constraint}) {
+                    } elsif($self->{_log_constraints}->{$constraint} ne $constraints->{$constraint}) {
                         $matches = 0;
                     }
                 }
@@ -217,107 +277,135 @@ sub update_config {
                     $max_matching_level = $level;
                 }
             }
-            $API_LOG_LEVEL = $max_matching_level;
+            $self->{_api_log_level} = $max_matching_level;
         } else {
-            print STDERR "Could not retrieve mlog subsystem from control API at: $subsystem_api_url\n";
+            warn "Could not retrieve mlog subsystem from control API at: $subsystem_api_url";
         }
     }
 }
 
-sub set_log_level {
-    my ($level) = @_;
-    if(exists $MLOG_TEXT_TO_LEVEL{$level}) {
-        $level = $MLOG_TEXT_TO_LEVEL{$level};
-    } elsif($level !~ /^\d+$/ || $level < 0 || $level > (@MLOG_LEVELS - 1)) {
-        print STDERR "ERROR: Format for calling set_log_level is set_log_level(integer level) where level can range from 0 to ".(@MLOG_LEVELS - 1)." or be one of '".join("', '",keys %MLOG_TEXT_TO_LEVEL)."'\n";
-        return 1;
+sub _resolve_log_level {
+    my ($self, $level) = @_;
+    if(defined $_MLOG_TEXT_TO_LEVEL->{$level}) {
+        $level = $_MLOG_TEXT_TO_LEVEL->{$level};
+    } elsif (!(defined $_MLOG_LEVEL_TO_TEXT->{$level})) {
+        die "Illegal log level";
     }
-    $USER_LOG_LEVEL = $level;
+    return $level;
+}
+
+sub set_log_level {
+    my ($self, $level) = @_;
+    $self->{_user_log_level} = $self->_resolve_log_level($level);
+    $self->{_callback}();
+}
+
+sub get_log_file {
+    my ($self) = @_;
+    if ($self->{_user_log_file}) {
+        return $self->{_user_log_file};
+    }
+    if ($self->{_config_log_file}) {
+        return $self->{_config_log_file};
+    }
+    return undef;
 }
 
 sub set_log_file {
-    my ($filename) = @_;
-    $USER_LOG_FILE = $filename;
+    my ($self, $filename) = @_;
+    $self->{_user_log_file} = $filename;
+    $self->{_callback}();
 }
 
 sub set_log_msg_check_count {
-    my ($count) = @_;
-    if($count !~ /^\d+$/) {
-        print STDERR "ERROR: Format for calling set_log_msg_check_count is set_log_msg_check_count(integer count)\n";
-        return 1;
+    my ($self, $count) = @_;
+    if($count !~ /^\d+$/ || $count < 0) {
+        die "Format for calling set_log_msg_check_count is set_log_msg_check_count(integer count)\n";
     }
-    $MSG_CHECK_COUNT = $count;
+    $self->{_recheck_api_msg} = $count;
 }
 
 sub set_log_msg_check_interval {
-    my ($interval) = @_;
-    if($interval !~ /^\d+$/) {
-        print STDERR "ERROR: Format for calling set_log_msg_check_interval is set_log_msg_check_interval(integer seconds)\n";
-        return 1;
+    my ($self, $interval) = @_;
+    if($interval !~ /^\d+$/ || $interval < 0) {
+        die "Format for calling set_log_msg_check_interval is set_log_msg_check_interval(integer seconds)\n";
     }
-    $MSG_CHECK_INTERVAL = $interval;
+    $self->{_recheck_api_time} = $interval;
 }
 
 sub clear_user_log_level {
-    $USER_LOG_LEVEL = -1;
+    my ($self) = @_;
+    $self->{_user_log_level} = -1;
+}
+
+sub _get_ident {
+    my ($self, $level, $user, $file, $authuser, $module, $method, $call_id) = @_;
+    my @infos = ($self->{_subsystem}, $_MLOG_LEVEL_TO_TEXT->{$level},
+                    Time::HiRes::time(), $user, $file, $$);
+    if ($self->{authuser}) {
+        push @infos, $authuser || '-';
+    }
+    if ($self->{module}) {
+        push @infos, $module || '-';
+    }if ($self->{method}) {
+        push @infos, $method || '-';
+    }if ($self->{call_id}) {
+        push @infos, $call_id || '-';
+    }
+    return "[" . join("] [", @infos). "]";
+}
+
+sub _syslog {
+    my ($self, $facility, $level, $user, $file, $authuser, $module, $method,
+        $call_id, $message) = @_;
+    setlogsock('unix');
+    openlog($self->_get_ident($level, $user, $file, $authuser, $module, $method,
+                                $call_id), "", $facility);
+    syslog($_MLOG_TO_SYSLOG[$level], "$message");
+    closelog();
+}
+
+sub _log {
+    my ($self, $level, $user, $file, $authuser, $module, $method, $call_id,
+        $message) = @_;
+    my $time = POSIX::strftime("%Y-%m-%d %H:%M:%S", localtime);
+    my $msg = join(" ", $time, hostname(), $self->_get_ident(
+        $level, $user, $file, $authuser, $module, $method, $call_id) .
+        ": " . $message) . "\n";
+    open LOG, ">>" . $self->get_log_file() ||
+        warn "Could not print log message $msg to " . $self->get_log_file() . "\n";
+    print LOG $msg;
+    close LOG;
 }
 
 sub logit {
-    my ($level, $message) = @_;
-    if(@_ != 2 ||
-       ($level !~ /^\d+$/ && (! exists $MLOG_TEXT_TO_LEVEL{$level})) ||
-       ($level =~ /^\d+$/ && ($level < 0 || $level > (@MLOG_LEVELS - 1)))) {
-        print STDERR "ERROR: Format for calling logit is logit(integer level, string message) where level can range from 0 to ".(@MLOG_LEVELS - 1)." or be one of '".join("', '",keys %MLOG_TEXT_TO_LEVEL)."'\n";
-        return 1;
-    }
+    my ($self, $level, $message, $authuser, $module, $method, $call_id) = @_;
+    $level = $self->_resolve_log_level($level);
 
-    if($level !~ /^\d+$/) {
-        $level = $MLOG_TEXT_TO_LEVEL{$level};
-    }
-
-    if($MSG_COUNT == 0 && $TIME_AT_LAST_CONFIG_UPDATE eq "") {
-        print STDERR "WARNING: init_mlog() was not called, so I will call it for you.\n";
-        init_mlog();
-    }
-
-    ++$MSG_COUNT;
-    ++$MSGS_SINCE_LAST_CONFIG_UPDATE;
+    ++$self->{msg_count};
+    ++$self->{_msgs_since_config_update};
 
     my $user = $ENV{'USER'};
-    my $ident = abs_path($0);
-    my $logopt = "";
+    my $file = abs_path($0);
 
-    if($MSGS_SINCE_LAST_CONFIG_UPDATE >= $MSG_CHECK_COUNT || _get_time_since_start() >= $MSG_CHECK_INTERVAL) {
-        update_config();
+    if($self->{_msgs_since_config_update} >= $self->{_recheck_api_msg} ||
+        $self->_get_time_since_start() >= $self->{_recheck_api_time}) {
+        $self->update_config();
     }
 
     # If this message is an emergency, send a copy to the emergency facility first.
     if($level == 0) {
-        setlogsock('unix');
-        openlog("[$SUBSYSTEM] [$MLOG_LEVELS[$level]] [$user] [$ident] [$$]", $logopt, $EMERG_FACILITY);
-        syslog($SYSLOG_LEVEL_TEXT[$level], "$message");
-        closelog();
+        $self->_syslog($EMERG_FACILITY, $level, $user, $file, $authuser,
+            $module, $method, $call_id, $message);
     }
 
-    if($level <= get_log_level($SUBSYSTEM)) {
-        setlogsock('unix');
-        openlog("[$SUBSYSTEM] [$MLOG_LEVELS[$level]] [$user] [$ident] [$$]", $logopt, $MSG_FACILITY);
-        syslog($SYSLOG_LEVEL_TEXT[$level], "$message");
-        closelog();
-        my $log_file = "";
-        if($USER_LOG_FILE ne "") {
-            $log_file = $USER_LOG_FILE;
-        } elsif($CONFIG_LOG_FILE ne "") {
-            $log_file = $CONFIG_LOG_FILE;
+    if($level <= $self->get_log_level()) {
+        $self->_syslog($MSG_FACILITY, $level, $user, $file, $authuser,
+            $module, $method, $call_id, $message);
+        if($self->get_log_file()) {
+            $self->_log($level, $user, $file, $authuser, $module, $method,
+                $call_id, $message);
         }
-
-        if($log_file ne "") {
-            open LOG, ">>$log_file" || print STDERR "Could not print log message to $log_file\n";
-            print LOG localtime(time)." ".hostname." [$SUBSYSTEM] [$MLOG_LEVELS[$level]] [$user] [$ident] [$$]: $message\n";
-            close LOG;
-        }
-    } else {
-        return 1;
     }
 }
 
