@@ -159,8 +159,7 @@ sub new {
     unless(defined $sub) {
         die "ERROR: You must define a subsystem when calling init_log()\n";
     }
-    my $self = {
-    };
+    my $self = {};
     bless $self, $class;
     $self->{authuser} = _get_option($options, 'authuser');
     $self->{module} = _get_option($options, 'module');
@@ -232,29 +231,30 @@ sub update_config {
         my $cfg = new Config::Simple($self->{_mlog_config_file});
         my $cfgitems = $cfg->get_block($_GLOBAL);
         my $subitems = $cfg->get_block($self->{_subsystem});
-        my %cfg = %{$cfg};
-        @cfg{keys %{$subitems}} = values %{$subitems};
-        if(defined $cfg->{$MLOG_LOG_LEVEL}) {
-            if($cfg->{$MLOG_LOG_LEVEL} !~ /^\d+$/) {
-                warn "Cannot parse log level $cfg->{$MLOG_LOG_LEVEL} from " + 
-                    "file $self->{_mlog_config_file} to int. Keeping " +
-                    "current log level.";
+        foreach my $k (keys %{$subitems}) {
+            $cfgitems->{$k} = $subitems->{$k};
+        }
+        if(defined $cfgitems->{$MLOG_LOG_LEVEL}) {
+            if($cfgitems->{$MLOG_LOG_LEVEL} !~ /^\d+$/) {
+                warn "Cannot parse log level " . $cfgitems->{$MLOG_LOG_LEVEL} . 
+                    " from file " . $self->{_mlog_config_file} . 
+                    " to int. Keeping current log level.";
             } else {
-                $self->{_config_log_level} = $cfg->{$MLOG_LOG_LEVEL};
+                $self->{_config_log_level} = $cfgitems->{$MLOG_LOG_LEVEL};
             }
         }
-        if(defined $cfg->{$MLOG_API_URL}) {
-            $api_url = $cfg->{$MLOG_API_URL};
+        if(defined $cfgitems->{$MLOG_API_URL}) {
+            $api_url = $cfgitems->{$MLOG_API_URL};
         }
-        if(defined $cfg->{$MLOG_LOG_FILE}) {
-            $self->{_config_log_file} = $cfg->{$MLOG_LOG_FILE}
+        if(defined $cfgitems->{$MLOG_LOG_FILE}) {
+            $self->{_config_log_file} = $cfgitems->{$MLOG_LOG_FILE}
         }
     } elsif (defined $self->{_mlog_config_file}) {
-        warn "Cannot read config file $self->{_mlog_config_file}";
+        warn "Cannot read config file " . $self->{_mlog_config_file};
     }
 
     unless($api_url eq "") {
-        my $subsystem_api_url = $api_url."/$self->{_subsystem}";
+        my $subsystem_api_url = $api_url."/".$self->{_subsystem};
         my $json = get($subsystem_api_url);
         if(defined $json) {
             my $decoded_json = decode_json($json);
@@ -370,9 +370,9 @@ sub _log {
         $message) = @_;
     my $msg = join(" ", (localtime(time), hostname, $self->_get_ident(
         $level, $user, $file, $authuser, $module, $method, $call_id) .
-        ":" . $message)) + "\n";
-    open LOG, ">>$self->_get_log_file()" ||
-        warn "Could not print log message $msg to $self->_get_log_file()\n";
+        ": " . $message)) . "\n";
+    open LOG, ">>" . $self->get_log_file() ||
+        warn "Could not print log message $msg to " . $self->get_log_file() . "\n";
     print LOG $msg;
     close LOG;
 }
@@ -402,7 +402,7 @@ sub logit {
         $self->_syslog($MSG_FACILITY, $level, $user, $file, $authuser,
             $module, $method, $call_id, $message);
         if($self->get_log_file()) {
-            $self._log($level, $user, $file, $authuser, $module, $method,
+            $self->_log($level, $user, $file, $authuser, $module, $method,
                 $call_id, $message);
         }
     }
