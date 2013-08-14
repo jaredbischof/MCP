@@ -316,10 +316,10 @@ class mlog(object):
 
     def _log(self, level, user, file_, authuser, module, method, call_id,
              message):
-        msg = ' '.join([str(_datetime.datetime.now()), _platform.node(),
-                        self._get_ident(level, user, file_, authuser, module,
-                                        method, call_id)
-                        + ':', message]) + '\n'
+        msg = ' '.join([str(_datetime.datetime.now().replace(microsecond=0)),
+                        _platform.node(), self._get_ident(
+                            level, user, file_, authuser, module, method,
+                            call_id) + ':', message]) + '\n'
         try:
             with open(self.get_log_file(), 'a') as log:
                 log.write(msg)

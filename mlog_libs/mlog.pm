@@ -368,9 +368,10 @@ sub _syslog {
 sub _log {
     my ($self, $level, $user, $file, $authuser, $module, $method, $call_id,
         $message) = @_;
-    my $msg = join(" ", (localtime(time), hostname, $self->_get_ident(
+    my $time = POSIX::strftime("%Y-%m-%d %H:%M:%S", localtime);
+    my $msg = join(" ", $time, hostname(), $self->_get_ident(
         $level, $user, $file, $authuser, $module, $method, $call_id) .
-        ": " . $message)) . "\n";
+        ": " . $message) . "\n";
     open LOG, ">>" . $self->get_log_file() ||
         warn "Could not print log message $msg to " . $self->get_log_file() . "\n";
     print LOG $msg;
