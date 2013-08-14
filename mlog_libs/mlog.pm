@@ -343,7 +343,7 @@ sub _get_ident {
     my @infos = ($self->{_subsystem}, $_MLOG_LEVEL_TO_TEXT->{$level},
                     Time::HiRes::time(), $user, $file, $$);
     if ($self->{authuser}) {
-        push @infos, $authuser;
+        push @infos, $authuser || '-';
     }
     if ($self->{module}) {
         push @infos, $module || '-';
