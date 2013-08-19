@@ -333,7 +333,7 @@ class mlog(object):
                         log.write(ident + str(message) + '\n')
         except Exception as e:
             err = 'Could not write to log file ' + str(self.get_log_file()) + \
-                ': ' + str(e) + '. Message was: ' + msg
+                ': ' + str(e) + '.'
             _warnings.warn(err)
 
     def logit(self, level, message, authuser=None, module=None, method=None,
