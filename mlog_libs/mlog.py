@@ -311,18 +311,32 @@ class mlog(object):
         _syslog.openlog(self._get_ident(level, user, file_, authuser, module,
                                         method, call_id),
                         facility=facility)
-        _syslog.syslog(_MLOG_TO_SYSLOG[level], message)
+        if isinstance(message, basestring):
+            _syslog.syslog(_MLOG_TO_SYSLOG[level], message)
+        else:
+            try:
+                for m in message:
+                    _syslog.syslog(_MLOG_TO_SYSLOG[level], m)
+            except TypeError:
+                _syslog.syslog(_MLOG_TO_SYSLOG[level], str(message))
         _syslog.closelog()
 
     def _log(self, level, user, file_, authuser, module, method, call_id,
              message):
-        msg = ' '.join([str(_datetime.datetime.now().replace(microsecond=0)),
+        ident = ' '.join([str(_datetime.datetime.now().replace(microsecond=0)),
                         _platform.node(), self._get_ident(
                             level, user, file_, authuser, module, method,
-                            call_id) + ':', message]) + '\n'
+                            call_id) + ': '])
         try:
             with open(self.get_log_file(), 'a') as log:
-                log.write(msg)
+                if isinstance(message, basestring):
+                    log.write(ident + message + '\n')
+                else:
+                    try:
+                        for m in message:
+                            log.write(ident + m + '\n')
+                    except TypeError:
+                        log.write(ident + str(message) + '\n')
         except Exception as e:
             err = 'Could not write to log file ' + str(self.get_log_file()) + \
                 ': ' + str(e) + '. Message was: ' + msg
@@ -330,7 +344,7 @@ class mlog(object):
 
     def logit(self, level, message, authuser=None, module=None, method=None,
               call_id=None):
-        message = str(message)
+#        message = str(message)
         level = self._resolve_log_level(level)
 
         self.msg_count += 1

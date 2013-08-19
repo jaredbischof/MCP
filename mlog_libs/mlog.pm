@@ -361,7 +361,13 @@ sub _syslog {
     setlogsock('unix');
     openlog($self->_get_ident($level, $user, $file, $authuser, $module, $method,
                                 $call_id), "", $facility);
-    syslog($_MLOG_TO_SYSLOG[$level], "$message");
+    if(ref($message) eq 'ARRAY') {
+        foreach my $m (@{$message}) {
+            syslog($_MLOG_TO_SYSLOG[$level], "$m");
+        }
+    } else {
+        syslog($_MLOG_TO_SYSLOG[$level], "$message");
+    }
     closelog();
 }
 
@@ -370,11 +376,16 @@ sub _log {
         $message) = @_;
     my $time = POSIX::strftime("%Y-%m-%d %H:%M:%S", localtime);
     my $msg = join(" ", $time, hostname(), $self->_get_ident(
-        $level, $user, $file, $authuser, $module, $method, $call_id) .
-        ": " . $message) . "\n";
+        $level, $user, $file, $authuser, $module, $method, $call_id)) . ": ";
     open LOG, ">>" . $self->get_log_file() ||
         warn "Could not print log message $msg to " . $self->get_log_file() . "\n";
-    print LOG $msg;
+    if(ref($message) eq 'ARRAY') {
+        foreach my $m (@{$message}) {
+            print LOG $msg . "$m\n";
+        }
+    } else {
+        print LOG $msg . "$message\n";
+    }
     close LOG;
 }
 
