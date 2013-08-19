@@ -356,11 +356,9 @@ sub _get_ident {
 }
 
 sub _syslog {
-    my ($self, $facility, $level, $user, $file, $authuser, $module, $method,
-        $call_id, $message) = @_;
+    my ($self, $facility, $level, $ident, $message) = @_;
     setlogsock('unix');
-    openlog($self->_get_ident($level, $user, $file, $authuser, $module, $method,
-                                $call_id), "", $facility);
+    openlog($ident, "", $facility);
     if(ref($message) eq 'ARRAY') {
         foreach my $m (@{$message}) {
             syslog($_MLOG_TO_SYSLOG[$level], "$m");
@@ -372,11 +370,9 @@ sub _syslog {
 }
 
 sub _log {
-    my ($self, $level, $user, $file, $authuser, $module, $method, $call_id,
-        $message) = @_;
+    my ($self, $ident, $message) = @_;
     my $time = POSIX::strftime("%Y-%m-%d %H:%M:%S", localtime);
-    my $msg = join(" ", $time, hostname(), $self->_get_ident(
-        $level, $user, $file, $authuser, $module, $method, $call_id)) . ": ";
+    my $msg = join(" ", $time, hostname(), $ident . ": ");
     open LOG, ">>" . $self->get_log_file() ||
         warn "Could not print log message $msg to " . $self->get_log_file() . "\n";
     if(ref($message) eq 'ARRAY') {
@@ -404,18 +400,17 @@ sub logit {
         $self->update_config();
     }
 
+    my $ident = $self->_get_ident($level, $user, $file, $authuser, $module,
+        $method, $call_id);
     # If this message is an emergency, send a copy to the emergency facility first.
     if($level == 0) {
-        $self->_syslog($EMERG_FACILITY, $level, $user, $file, $authuser,
-            $module, $method, $call_id, $message);
+        $self->_syslog($EMERG_FACILITY, $level, $ident, $message);
     }
 
     if($level <= $self->get_log_level()) {
-        $self->_syslog($MSG_FACILITY, $level, $user, $file, $authuser,
-            $module, $method, $call_id, $message);
+        $self->_syslog($MSG_FACILITY, $level, $ident, $message);
         if($self->get_log_file()) {
-            $self->_log($level, $user, $file, $authuser, $module, $method,
-                $call_id, $message);
+            $self->_log($ident, $message);
         }
     }
 }
