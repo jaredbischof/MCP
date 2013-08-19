@@ -306,11 +306,8 @@ class mlog(object):
             infos.append(str(call_id) if call_id else '-')
         return "[" + "] [".join(infos) + "]"
 
-    def _syslog(self, facility, level, user, file_, authuser, module, method,
-                call_id, message):
-        _syslog.openlog(self._get_ident(level, user, file_, authuser, module,
-                                        method, call_id),
-                        facility=facility)
+    def _syslog(self, facility, level, ident, message):
+        _syslog.openlog(ident, facility=facility)
         if isinstance(message, basestring):
             _syslog.syslog(_MLOG_TO_SYSLOG[level], message)
         else:
@@ -321,12 +318,9 @@ class mlog(object):
                 _syslog.syslog(_MLOG_TO_SYSLOG[level], str(message))
         _syslog.closelog()
 
-    def _log(self, level, user, file_, authuser, module, method, call_id,
-             message):
+    def _log(self, ident, message):
         ident = ' '.join([str(_datetime.datetime.now().replace(microsecond=0)),
-                        _platform.node(), self._get_ident(
-                            level, user, file_, authuser, module, method,
-                            call_id) + ': '])
+                        _platform.node(), ident + ': '])
         try:
             with open(self.get_log_file(), 'a') as log:
                 if isinstance(message, basestring):
@@ -357,18 +351,17 @@ class mlog(object):
            or self._get_time_since_start() >= self._recheck_api_time):
             self.update_config()
 
+        ident = self._get_ident(level, user, file_, authuser, module, method,
+                                call_id)
         # If this message is an emergency, send a copy to the emergency
         # facility first.
         if(level == 0):
-            self._syslog(EMERG_FACILITY, level, user, file_, authuser, module,
-                         method, call_id, message)
+            self._syslog(EMERG_FACILITY, level, ident, message)
 
         if(level <= self.get_log_level()):
-            self._syslog(MSG_FACILITY, level, user, file_, authuser, module,
-                         method, call_id, message)
+            self._syslog(MSG_FACILITY, level, ident, message)
             if self.get_log_file():
-                self._log(level, user, file_, authuser, module, method,
-                          call_id, message)
+                self._log(ident, message)
 
 if __name__ == '__main__':
     pass
