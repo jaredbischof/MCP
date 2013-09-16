@@ -391,7 +391,6 @@ sub _get_ident {
 
 sub _syslog {
     my ($self, $facility, $level, $ident, $message) = @_;
-    setlogsock('unix');
     openlog($ident, "", $facility);
     if(ref($message) eq 'ARRAY') {
         foreach my $m (@{$message}) {
